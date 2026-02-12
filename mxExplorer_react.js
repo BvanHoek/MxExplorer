@@ -91,7 +91,7 @@ javascript: (() => {
         addLabelValue(mxExplorer.infoTable, "User GUID", mx.session.getUserId());
         addClass(addLabelValue(mxExplorer.infoTable, "User roles", splitArrayToString(mx.session.getUserRoleNames())), "evenRow");
         addLabelValue(mxExplorer.infoTable, "User is guest", mx.session.isGuest());
-        addClass(addLabelValue(mxExplorer.infoTable, "Current page", mx.ui.getContentForm().path), "evenRow");
+        // addClass(addLabelValue(mxExplorer.infoTable, "Current page", mx.ui.getContentForm().path), "evenRow");
         mxExplorer.browseEntitiesRow = addRow(mxExplorer.contentTable);
         mxExplorer.browseEntitiesCell = addCell(mxExplorer.browseEntitiesRow);
         mxExplorer.browseEntitiesLink = addLink(mxExplorer.browseEntitiesCell, "Browse entities");
