@@ -87,7 +87,7 @@ javascript: (() => {
             mx.logout()
         }));
         addLabelValue(mxExplorer.infoTable, "Mendix version", mx.version);
-        addClass(addLabelValue(mxExplorer.infoTable, "User", mx.session.getUserName()), "evenRow");
+        addClass(addLabelValue(mxExplorer.infoTable, "User", mx.session.getConfig().user.attributes.Name.value), "evenRow");
         addLabelValue(mxExplorer.infoTable, "User GUID", mx.session.getUserId());
         addClass(addLabelValue(mxExplorer.infoTable, "User roles", splitArrayToString(mx.session.getUserRoleNames())), "evenRow");
         addLabelValue(mxExplorer.infoTable, "User is guest", mx.session.isGuest());
