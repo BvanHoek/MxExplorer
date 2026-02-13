@@ -1,6 +1,6 @@
 javascript: (() => {
     let mxExplorer = {};
-    mxExplorer.version = "1.2.1";
+    mxExplorer.version = "1.3.0";
     mxExplorer.appTitle = "Mx Explorer v" + mxExplorer.version + ", created by Valcon";
 
     // --- FIX: replaced mx.meta.getMap() with mx.session.getConfig().metadata ---
@@ -91,7 +91,9 @@ javascript: (() => {
         addLabelValue(mxExplorer.infoTable, "User GUID", mx.session.getUserId());
         addClass(addLabelValue(mxExplorer.infoTable, "User roles", splitArrayToString(mx.session.getUserRoleNames())), "evenRow");
         addLabelValue(mxExplorer.infoTable, "User is guest", mx.session.isGuest());
-        // addClass(addLabelValue(mxExplorer.infoTable, "Current page", mx.ui.getContentForm().path), "evenRow");
+        if (typeof mx.ui.getContentForm === 'function') {
+            addClass(addLabelValue(mxExplorer.infoTable, "Current page", mx.ui.getContentForm().path), "evenRow");  // check if it is Dojo or React client. (mx.ui.getContentForm() is only available in Dojo)
+        }
         mxExplorer.browseEntitiesRow = addRow(mxExplorer.contentTable);
         mxExplorer.browseEntitiesCell = addCell(mxExplorer.browseEntitiesRow);
         mxExplorer.browseEntitiesLink = addLink(mxExplorer.browseEntitiesCell, "Browse entities");
@@ -581,7 +583,6 @@ javascript: (() => {
         addClass(bottomRight, "fitContent");
         addResizeContainer(bottomRight, "nwse-resize", true, true, modal, "br");
         const contentTable = addTable(centerCenter);
-        contentTable.style.display = 'block';
         modal.headerRow = addRow(contentTable);
         const headerCell = addCell(modal.headerRow);
         modal.headerContainer = addFlex(headerCell);
