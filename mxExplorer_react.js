@@ -178,6 +178,8 @@ javascript: (() => {
         const entitiesRow = addRow(contentTable);
         const entitiesCell = addCell(entitiesRow);
         const entitiesContainer = addContentContainer(entitiesCell);
+        entitiesContainer.style.overflowY = 'auto'; // enable vertical scrolling
+        entitiesContainer.style.maxHeight = (window.innerHeight - 150) + 'px'; // limit height to viewport
         addEntities(addTable(entitiesContainer));
         initModal(mxExplorer.browseEntitiesModel);
         setComponentHeightInPixels(entitiesContainer, contentTable.style.offsetHeight - (searchRow.style.offsetHeight + mxExplorer.modalContentPaddingTop + mxExplorer.modalContentPaddingBottom))
