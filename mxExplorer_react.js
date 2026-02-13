@@ -355,6 +355,7 @@ javascript: (() => {
         return row
     }
 
+
     function addLabelAttributeToContainer(table, labelParam, valueParam, attribute, entityObject) {
         const row = addRow(table, false);
         const labelColumn = addCell(row);
@@ -580,6 +581,7 @@ javascript: (() => {
         addClass(bottomRight, "fitContent");
         addResizeContainer(bottomRight, "nwse-resize", true, true, modal, "br");
         const contentTable = addTable(centerCenter);
+        contentTable.style.display = 'block';
         modal.headerRow = addRow(contentTable);
         const headerCell = addCell(modal.headerRow);
         modal.headerContainer = addFlex(headerCell);
@@ -1253,8 +1255,8 @@ javascript: (() => {
             modal.x = 0;
             modal.y = 0
         } else {
-            modal.x = Math.floor((screen.width - modal.offsetWidth) / 2);
-            modal.y = Math.floor((screen.height - modal.offsetHeight) / 2)
+            modal.x = Math.floor((window.innerWidth - modal.offsetWidth) / 2);
+            modal.y = Math.floor((window.innerHeight - modal.offsetHeight) / 2);
         }
         if (modal.contentCell.offsetHeight > mxExplorer.modalContentMaxInitialHeight) {
             setComponentHeightInPixels(modal.contentCell, mxExplorer.modalContentMaxInitialHeight)
