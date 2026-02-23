@@ -1582,14 +1582,8 @@ function addAssociationPanel(association, entity, table, evenRow, modal, entry) 
 	}
 }
 
-function addPaging(navigationColumn, length, offset, amount) {
-	const maxLength = +offset + +amount;
-	const to = length < maxLength ? length : maxLength;
-	if (length > 0) {
-		addLabel(navigationColumn, offset + 1 + " to " + to + " of " + length)
-	} else {
-		addLabel(navigationColumn, "0 to 0 of 0")
-	}
+function addPaging(dataGrid) {
+	dataGrid.pagingLabel = addLabel(dataGrid.pagingContainer, emptyPagingText);
 }
 
 function updatePaging(dataGrid) {
