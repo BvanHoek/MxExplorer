@@ -35,7 +35,7 @@
 //Added column visibility picker to the datagrid: a sticky 👁 button at the far-right end of the header row opens a dropdown showing all columns with checkboxes to show or hide them. The button stays visible even when scrolling horizontally. Visibility state is preserved across page navigation.
 javascript: (() => {
     let mxExplorer = {};
-    mxExplorer.version = "1.3.1";
+    mxExplorer.version = "1.3.0";
     mxExplorer.appTitle = "Mx Explorer v" + mxExplorer.version + ", created by Valcon";
 
     // --- FIX: replaced mx.meta.getMap() with mx.session.getConfig().metadata ---
@@ -1611,8 +1611,7 @@ function handlePageNavigationClick(dataGrid, newPageOffset) {
                 addClass(container, "dataGridContainer");
 				console.log("[" + association + "=" + entry.getGuid() + "]");
 				console.dir(association);
-				addDataGrid(container, mxExplorer.entities[entity].getAttributes(), "[" + association + "=" + entry.getGuid() + "]", true);
-            }
+				addDataGrid(container, mxExplorer.entities[entity].getAttributes(), entity, "[" + association + "=" + entry.getGuid() + "]", true, modal);            }
         });
 	//Dummy cell
         addCell(collapsibleRow);
