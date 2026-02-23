@@ -1079,7 +1079,7 @@ function addDataGrid(parent, parentAttributes, entity, hiddenXpathValue, embedde
 	dataGrid.hiddenXpathValue = hiddenXpathValue;
 	dataGrid.embedded = embedded;
 	dataGrid.entity = entity;
-	dataGrid.entityObject = mxExplorer.entities[this.entity];
+	dataGrid.entityObject = mxExplorer.entities[entity];
 	dataGrid.pageSize = mxExplorer.defaultPageSize;
 	dataGrid.pageOffset = 0;
 	dataGrid.offset = 0;
