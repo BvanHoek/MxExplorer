@@ -1584,6 +1584,7 @@ function addAssociationPanel(association, entity, table, evenRow, modal, entry) 
 
 function addPaging(dataGrid) {
 	dataGrid.pagingLabel = addLabel(dataGrid.pagingContainer, emptyPagingText);
+	dataGrid.pagingLabel.textNode = dataGrid.pagingLabel.firstChild; // Store text node reference for updatePaging
 }
 
 function updatePaging(dataGrid) {
