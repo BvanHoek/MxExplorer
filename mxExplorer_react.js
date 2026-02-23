@@ -388,7 +388,7 @@ mxExplorer.maxInitialWidth = screen.width - Math.round(screen.width / 3);
         mxExplorer.modal.closeButton.addEventListener("click", (event) => {
             event.stopPropagation();
             document.body.removeChild(mxExplorer.shadowHost);
-            mxExplorer = null
+            mxExplorer = null;
         });
 
         mxExplorer.modalContentTable = addTable(mxExplorer.modal.contentCell);
@@ -1120,6 +1120,10 @@ function refreshSortingContainer(dataGrid) {
 }
 
 function updateDataGrid(dataGrid) {
+	console.log(dataGrid.pageSize);
+	console.dir(dataGrid);
+	console.log(dataGrid.dataGridContent);
+	console.log(dataGrid.dataGridContent.dataTable);
 	const dataTable = dataGrid.dataGridContent.dataTable;
 
 	while (dataTable.children.length > 1) {
@@ -1169,7 +1173,7 @@ function updateDataGrid(dataGrid) {
 			dataGrid.isLastPage = dataGrid.totalResultSize <= dataGrid.pageSize;
 
 			const modal = dataGrid.modal;
-			if (dataGrid && !modal.initDone) {
+			if (dataGrid && !dataGrid.embedded && !modal.initDone) {
 				modal.initDone = true;
 				initModal(modal);
 			}
@@ -1377,8 +1381,9 @@ function addDataGridNavigation(dataGrid) {
 	dataGrid.nextPageLink = addLink(nextPageColumn, ">");
 	dataGrid.lastPageLink = addLink(lastPageColumn, ">>");
 
-	dataGrid.selectPageSize = addPageSize(dataGrid.topRightContainer, () => {
+	dataGrid.selectPageSize = addPageSize(dataGrid, () => {
 		dataGrid.pageSize = dataGrid.selectPageSize.value;
+		console.log(dataGrid.pageSize);
 		updateDataGrid(dataGrid);
 	});
 
@@ -1518,7 +1523,6 @@ function handlePageNavigationClick(dataGrid, newPageOffset) {
         container = addLabelValue(attributeContentTable, "GUID", entry.getGuid());
 
         let attributeCounter = 2;
-	console.dir(parentAttributes);
         parentAttributes.sort();
         parentAttributes.forEach(attribute => {
 
@@ -1529,6 +1533,9 @@ function handlePageNavigationClick(dataGrid, newPageOffset) {
 				addClass(container, "evenRow");
                 }
             } else {
+			console.log("addDataPage1");
+			console.dir(parentAttributes);
+			console.dir(attribute);
 			addAssociationPanel(attribute, getSelectorEntity(attribute), associationsContentTable, attributeCounter % 2 === 0, dataModal, entry);
             }
 		attributeCounter++;
@@ -1543,7 +1550,7 @@ function handlePageNavigationClick(dataGrid, newPageOffset) {
 			//If this is a one to one relation, it is already shown with the attributes, so don't create a panel for it
 			if (!getReferenceAttributes(entityObject).includes(key)) {
                     const associatedEntity = associationsForEntity.get(key);
-                    addAssociationPanel(key, associatedEntity, associationsContentTable, attributeCounter % 2 === 0, dataModal, entry);
+				addAssociationPanel(key[0], associatedEntity, associationsContentTable, attributeCounter % 2 === 0, dataModal, entry);
 				attributeCounter++;
                 }
 			result = it.next();
@@ -1603,8 +1610,8 @@ function handlePageNavigationClick(dataGrid, newPageOffset) {
             } else {
                 addClass(container, "dataGridContainer");
 				console.log("[" + association + "=" + entry.getGuid() + "]");
-				console.dir(entry);
-				addDataGrid(container, getAttributes(entity), "[" + association + "=" + entry.getGuid() + "]", true);
+				console.dir(association);
+				addDataGrid(container, mxExplorer.entities[entity].getAttributes(), "[" + association + "=" + entry.getGuid() + "]", true);
             }
         });
 	//Dummy cell
