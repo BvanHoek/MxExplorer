@@ -1159,7 +1159,7 @@ function updateDataGrid(dataGrid) {
 					if (dataGrid.hiddenColumns.has(attribute)) {
 						addHiddenClass(dataCell);
 					}
-					console.log('Calling addValueElement - attribute:', attribute, 'entityObject:', dataGrid.entityObject);
+					console.info('Calling addValueElement - attribute:', attribute, 'entityObject:', dataGrid.entityObject);
 
 					const element = addValueElement(dataCell, value, attribute, entry.entityObject);
 					if (element && !element.objectReference) {
