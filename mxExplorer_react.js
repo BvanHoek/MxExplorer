@@ -714,6 +714,7 @@ function addSearchLink(parent, entity) {
 
 	function addValueElement(column, valueParam, attribute, entityObject) {
 		if (entityObject.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
+			console.log('ObjectReferenceSet - valueParam:', valueParam, 'isArray:', Array.isArray(valueParam));
 			addObjectReferenceLink(column, valueParam, attribute, entityObject)
 		} else if (entityObject.getAttributeType(attribute) === "ObjectReferenceSet" && valueParam && Array.isArray(valueParam)) {
 			valueParam.forEach((entry) => {
@@ -1158,6 +1159,7 @@ function updateDataGrid(dataGrid) {
 					if (dataGrid.hiddenColumns.has(attribute)) {
 						addHiddenClass(dataCell);
 					}
+					console.log('Calling addValueElement - attribute:', attribute, 'entityObject:', dataGrid.entityObject);
 
 					const element = addValueElement(dataCell, value, attribute, entry.entityObject);
 					if (element && !element.objectReference) {
