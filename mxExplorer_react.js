@@ -1948,13 +1948,13 @@ function isObjectReferenceSet(attribute) {
 
     function loadAssociations() {
 	mxExplorer.entityKeys.forEach((entityKey) => {
-		const entity = mxExplorer.entities.get(entityKey);
+		const entity = mxExplorer.entities[entityKey];
 		getReferenceAttributes(entity).forEach((reference) => {
                 let referenceNotFromSuper = true;
 
 			//Check reference for presence in super class
 			getSuperEntities(entity).every((superEntity) => {
-				if (getReferenceAttributes(mxExplorer.entities.get(superEntity)).includes(reference)) {
+				if (getReferenceAttributes(mxExplorer.entities[superEntity]).includes(reference)) {
                         referenceNotFromSuper = false;
 					return false;
                     }
@@ -1970,7 +1970,7 @@ function isObjectReferenceSet(attribute) {
 					const associatedEntityMap = new Map();
 					mxExplorer.associations.set(associatedEntityKey, associatedEntityMap.set(reference, entityKey));
                     }
-				const associatedEntity = mxExplorer.entities.get(associatedEntityKey);
+				const associatedEntity = mxExplorer.entities[associatedEntityKey];
                     if (associatedEntity) {
 					if (getSubEntities(associatedEntity).length > 0) {
 						getSubEntities(associatedEntity).forEach((subEntityKey) => {
