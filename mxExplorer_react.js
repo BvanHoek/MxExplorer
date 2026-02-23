@@ -683,17 +683,37 @@ function addLabelAttributeToContainer(table, labelParam, valueParam, attribute, 
 }
 
 function addValueElement(column, valueParam, attributeName, entityObject) {
-	if (getAttributeType(entityObject, attributeName) === "ObjectReference" && valueParam !== "") {
-		addObjectReferenceLink(column, valueParam);
-	} else if (getAttributeType(entityObject, attributeName) === "ObjectReferenceSet" && valueParam !== "") {
-		valueParam.forEach((entry) => {
-			addObjectReferenceLink(column, entry);
-		})
-	} else {
-		const textNode = addTextNode(column, valueParam);
-		textNode.objectReference = false;
-		return textNode;
-	}
+    // Special handling for GUID attribute
+    if (attributeName === "GUID" || !entityObject.attributes[attributeName]) {
+        if (attributeName === "GUID" && valueParam) {
+            // Make GUID clickable to open entity detail page
+            const link = addLink(column, valueParam);
+            link.addEventListener("click", (event) => {
+                event.stopPropagation();
+                mxDataGetEntry(valueParam, (entry) => {
+                    addDataPage(entry, Object.keys(entityObject.attributes));
+                }, getDefaultMxDataGetErrorHandler());
+            });
+            link.objectReference = true;
+            return link;
+        } else {
+            const textNode = addTextNode(column, valueParam);
+            textNode.objectReference = false;
+            return textNode;
+        }
+    }
+    
+    if (getAttributeType(entityObject, attributeName) === "ObjectReference" && valueParam !== "") {
+        addObjectReferenceLink(column, valueParam);
+    } else if (getAttributeType(entityObject, attributeName) === "ObjectReferenceSet" && valueParam !== "") {
+        valueParam.forEach((entry) => {
+            addObjectReferenceLink(column, entry);
+        })
+    } else {
+        const textNode = addTextNode(column, valueParam);
+        textNode.objectReference = false;
+        return textNode;
+    }
 }
 
 function addObjectReferenceLink(column, valueParam, attribute, entityObject) {
