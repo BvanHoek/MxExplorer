@@ -713,13 +713,9 @@ function addSearchLink(parent, entity) {
     }
 
 	function addValueElement(column, valueParam, attribute, entityObject) {
-		// entityObject here is actually a data entry (MxObject), not entity definition
-		// Get the actual entity definition
-		const entityDef = mxExplorer.entities[entityObject.getEntity()];
-		
-		if (entityDef && entityDef.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
+		if (entityObject.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
 			addObjectReferenceLink(column, valueParam, attribute, entityObject)
-		} else if (entityDef && entityDef.getAttributeType(attribute) === "ObjectReferenceSet" && valueParam !== "") {
+		} else if (entityObject.getAttributeType(attribute) === "ObjectReferenceSet" && valueParam !== "") {
 			valueParam.forEach((entry) => {
 				addObjectReferenceLink(column, entry, attribute, entityObject);
 			})
