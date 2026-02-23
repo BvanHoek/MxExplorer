@@ -1158,8 +1158,8 @@ function updateDataGrid(dataGrid) {
 					if (dataGrid.hiddenColumns.has(attribute)) {
 						addHiddenClass(dataCell);
 					}
-					console.log('Calling addValueElement - attribute:', attribute, 'entityObject:', dataGrid.entityObject);
-					const element = addValueElement(dataCell, value, attribute, dataGrid.entityObject);
+
+					const element = addValueElement(dataCell, value, attribute, entry.entityObject);
 					if (element && !element.objectReference) {
 						dataCell.addEventListener("click", () => {
 							addTextToInputField(dataGrid.xpathField, "[" + attribute + "= \'" +  value + "\']");
