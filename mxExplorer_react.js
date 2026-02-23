@@ -351,8 +351,10 @@ function afterLoadNPEntities() {
 	// Close handler adjusted so it closes the shadowhost
 	mxExplorer.modal.closeButton.addEventListener("click", event => {
 		event.stopPropagation();
-		document.body.removeChild(mxExplorer.shadowHost);
-		mxExplorer = null
+		if (mxExplorer.shadowHost && mxExplorer.shadowHost.parentNode) { // Check if shadowHost exists and has a parent
+			document.body.removeChild(mxExplorer.shadowHost);
+		}
+		mxExplorer = null;
 	});
 
 	mxExplorer.modalContentTable = addTable(mxExplorer.modal.contentCell);
