@@ -1,453 +1,488 @@
+//If you want to use the script from a bookmark in the browser then minify and insert the script in this line (minus the forward slashes) and use that as the bookmark url:
+//javascript: (() => {PASTE THE SCRIPT HERE})();
+//Version: 1.4.0
+
+//Added in 1.2.0
+//Styling updated (thanks to Bianca Beerepoot)
+//It is now possible to export columns in a grid using the » button in the column header (this currently only exports the column the » button is behind)
+//Constants exposed to the client can now be viewed
+//NP entities can now be shown for all versions of Mendix
+//The GUID of an entry is now also shown on the data page
+//You can now use ctrl+enter in the xpath field to initiate search
+//It is now possible to browse from a persistent to a non persistent entity (previously opening an association to a non persistent entity would result in an error
+//Entity search is now only done on the entity name, the module no longer matches
+//Modals are now resizable
+//Attributes are now shown as readonly (red) or read/write (green)
+//Some restyling done on the datagrid search panels (the xpath search field now has a placeholder instead of a seperate label and the buttons make better use of the available space
+//The current page is now shown on the main modal
+//Added a logout link to the main modal
+
+//Fixed in 1.2.0
+//Fixed an issue where not all uneven rows had a grey background
+//Fixed an issue where you couldn't open associations when the association started in the entity entry being viewed
+//The modal for browse cache is now correctly called Browse cache (instead of Browse entities)
+//Associations are now loaded at start so they can always be used by the Browse cache functionality as well (they would otherwise only show the associated entries when the Browse entities modal was opened)
+//Opening an object in the Browse cache will now result in the object modal being shown as the top modal (it would open behind the Browse cache modal)
+//Associations pointing to an entity (many to One on the one side) are now also shown in specializations
+//The drop-down used to select the number of entries shown in a datagrid is now always shown, this solves the issue where the dropdown disappeared for a resultset of, for instance, 15 when the maxresults was switched from 10 to 25 or 50.
+//When opening a specialization entry via the datapage the specialization is now shown instead of only the attributes of the generalization
+//Fixed an issue with the entity search field not using the last input character in the search
+
+//Added in 1.3.0
+//Fixed the not working in React client part
+
+//Updated the way the datagrid data is refreshed, it will now not create an entirely new modal, but only update the actual data.
+//Added column visibility picker to the datagrid: a sticky 👁 button at the far-right end of the header row opens a dropdown showing all columns with checkboxes to show or hide them. The button stays visible even when scrolling horizontally. Visibility state is preserved across page navigation.
 javascript: (() => {
-let mxExplorer = {};
-mxExplorer.version = "1.3.1";
-mxExplorer.appTitle = "Mx Explorer v" + mxExplorer.version + ", created by Valcon";
-
-const metadataArray = mx.session.getConfig().metadata;
-mxExplorer.entities = {};
-metadataArray.forEach(entityMeta => {
-	mxExplorer.entities[entityMeta.objectType] = {
-		getAttributes: () => Object.keys(entityMeta.attributes),
-		getAttributeType: (attr) => entityMeta.attributes[attr]?.type ?? '',
-		getReferenceAttributes: () => Object.keys(entityMeta.attributes).filter(a =>
-			entityMeta.attributes[a].type === 'ObjectReference' ||
-			entityMeta.attributes[a].type === 'ObjectReferenceSet'
-		),
-		getSelectorEntity: (attr) => entityMeta.attributes[attr]?.klass ?? '',
-		isObjectReferenceSet: (attr) => entityMeta.attributes[attr]?.type === 'ObjectReferenceSet',
-		getSubEntities: () => entityMeta.properties?.subclasses ?? [],
-		getSuperEntities: () => entityMeta.properties?.superclasses ?? [],
-		isPersistable: () => entityMeta.persistable
-	};
-});
-
-mxExplorer.entityKeys = Object.keys(mxExplorer.entities);
-//All associations for an entity which are not owned by the entity are stored here
-mxExplorer.associations = new Map();
-loadAssociations();
-mxExplorer.npEntityArray = [];
-mxExplorer.entityLoadCount = 0;
-const shadowHost = document.createElement('div');
-document.body.appendChild(shadowHost);
-const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
-mxExplorer.body = shadowRoot;
-mxExplorer.head = shadowRoot; // Reference to shadowRoot so app styling does not effect the tool
-mxExplorer.shadowHost = shadowHost;
-mxExplorer.zIndex = 1000;
-mxExplorer.defaultPageSize = 10;
-mxExplorer.browseEntitiesModel = null;
-mxExplorer.browseCacheModel = null;
-mxExplorer.browseConstantsModel = null;
-mxExplorer.modalArray = [];
-
-mxExplorer.navPanelHeight = 44;
-mxExplorer.modalInitialMaxHeight = 900;
-mxExplorer.resizeAreaSize = 5;
-mxExplorer.maxInitialHeight = window.innerHeight - Math.round(window.innerHeight / 3); // use innerHeight instead of screen.height for visible viewport
-mxExplorer.maxInitialWidth = window.innerWidth - Math.round(window.innerWidth / 3); // use innerWidth instead of screen.width for visible viewport
-
-mxExplorer.modalBorderWidth = 1;
-
-mxExplorer.modalContentPaddingTop = 15;
-mxExplorer.modalContentPaddingBottom = 15;
-mxExplorer.modalContentPaddingLeft = 20;
-
-mxExplorer.modalContentPaddingRight = 20;
-mxExplorer.modalContentCellPaddingTop = 0;
-mxExplorer.modalContentCellPaddingBottom = 0;
-mxExplorer.modalContentCellPaddingLeft = 3;
-
-mxExplorer.modalContentCellPaddingRight = 3;
-mxExplorer.modalContentMaxInitialHeight = mxExplorer.maxInitialHeight - mxExplorer.navPanelHeight;
-
-mxExplorer.modalContentMaxInitialWidth = calculateModalContentWidth(mxExplorer.maxInitialWidth);
-
-mxExplorer.dataGridContentMaxInitialWidth = calculateDataGridContentWidth(mxExplorer.modalContentMaxInitialWidth);
-mxExplorer.dataGridContentMaxInitialHeight = calculateDataGridContentHeight(mxExplorer.modalContentMaxInitialHeight);
-
-mxExplorer.dataGridTopRowPadding = 5;
-
-mxExplorer.dataTableMaxWidth = 1760;
-
-mxExplorer.dataTableMaxHeight = 580;
-
-mxExplorer.styleTextNode = document.createTextNode(
-    ":host { all: initial; }" // Shadow DOM CSS reset
-    + "* { font-family: Arial, sans-serif; font-size: 14px; box-sizing: border-box; }" // Shadow DOM global styles
-    + ".mxExplorerModal.modal {"
-    + "display: block !important;"
-    + "width: fit-content; "
-    + "height: fit-content;"
-    + "position: fixed;" // Changed from absolute to fixed to prevent page scrolling
-    + "color: black;"
-    + "background-color: rgba(255,255,255); /* Black w/ opacity */"
-    + "border-style: solid;"
-    + "border-width: " + mxExplorer.modalBorderWidth + "px;"
-    + "border-color: rgba(0,0,0,.2);"
-    + "border-radius: 4px;"
-    + "overflow: hidden;}" // Prevent content overflow
-
-    + ".mxExplorerModal .modalTitle, .mxExplorerModal .collapsibleTitle {user-select: none;}"
-
-    + ".mxExplorerModal .hidden {display: none;}"
-
-    + ".mxExplorerModal a {color: blue;"
-    + "cursor: pointer;}"
-
-    + ".mxExplorerModal .cell {"
-    + "vertical-align: middle;"
-    + "display: table-cell;"
-    + "height: inherit;"
-    + "width: inherit;}"
-
-    + ".mxExplorerModal .modalContent {"
-    + "overflow: auto;"
-    + "display: block;"
-    + "padding: " + mxExplorer.modalContentPaddingTop + "px " + mxExplorer.modalContentPaddingRight + "px " + mxExplorer.modalContentPaddingBottom + "px " + mxExplorer.modalContentPaddingLeft + "px;}"
-
-    + ".mxExplorerModal .modalContent .cell {"
-    + "padding: " + mxExplorer.modalContentCellPaddingTop + "px " + mxExplorer.modalContentCellPaddingRight + "px " + mxExplorer.modalContentCellPaddingBottom + "px " + mxExplorer.modalContentCellPaddingLeft + "px;}"
-
-    + ".mxExplorerModal .modalHeader {"
-    + "height: " + mxExplorer.navPanelHeight + "px;"
-    + "padding: 15px 0px 15px 20px;"
-    + "display: flex;"
-    + "justify-content: space-between;"
-    + "align-items: center;"
-    + "text-align: left;"
-    + "border-bottom-style: solid;"
-    + "border-bottom-width: 1px;"
-    + "border-color: rgba(0,0,0,0.2);}"
-
-    + ".mxExplorerModal .modalTitle.label {"
-    + "color: rgb(102, 102, 102);}"
-
-    + ".mxExplorerModal .navigationPanel {"
-    + "height: " + mxExplorer.navPanelHeight + "px;"
-    + "top: 0;"
-    + "right: 0;}"
-
-    + ".mxExplorerModal .navigationButton {"
-    + "background: white;"
-    + "padding: 0px;"
-    + "width: 40px;"
-    + "color: rgb(102,102,102);"
-    + "border: none;"
-    + "border-bottom-style: solid;"
-    + "border-bottom-width: 1px;"
-    + "border-bottom-color: rgba(0,0,0,0.2);"
-    + "border-radius: 0px;"
-    + "height: 44px;}"
+    let mxExplorer = {};
+    mxExplorer.version = "1.3.1";
+    mxExplorer.appTitle = "Mx Explorer v" + mxExplorer.version + ", created by Valcon";
+
+    // --- FIX: replaced mx.meta.getMap() with mx.session.getConfig().metadata ---
+    const metadataArray = mx.session.getConfig().metadata;
+    mxExplorer.entities = {};
+    metadataArray.forEach(entityMeta => {
+        mxExplorer.entities[entityMeta.objectType] = {
+            getAttributes: () => Object.keys(entityMeta.attributes),
+            getAttributeType: (attr) => entityMeta.attributes[attr]?.type ?? '',
+            getReferenceAttributes: () => Object.keys(entityMeta.attributes).filter(a =>
+                entityMeta.attributes[a].type === 'ObjectReference' ||
+                entityMeta.attributes[a].type === 'ObjectReferenceSet'
+            ),
+            getSelectorEntity: (attr) => entityMeta.attributes[attr]?.klass ?? '',
+            isObjectReferenceSet: (attr) => entityMeta.attributes[attr]?.type === 'ObjectReferenceSet',
+            getSubEntities: () => entityMeta.properties?.subclasses ?? [],
+            getSuperEntities: () => entityMeta.properties?.superclasses ?? [],
+            isPersistable: () => entityMeta.persistable
+        };
+    });
+    // --- END FIX ---
+
+    mxExplorer.entityKeys = Object.keys(mxExplorer.entities);
+    mxExplorer.associations = new Map();
+    loadAssociations();
+    mxExplorer.npEntityArray = [];
+    mxExplorer.entityLoadCount = 0;
+    const shadowHost = document.createElement('div');
+    document.body.appendChild(shadowHost);
+    const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
+    mxExplorer.body = shadowRoot;
+    mxExplorer.head = shadowRoot; // Reference to shadowRoot so app styling does not effect the tool
+    mxExplorer.shadowHost = shadowHost;
+    mxExplorer.zIndex = 1000;
+    mxExplorer.defaultPageSize = 10;
+    mxExplorer.browseEntitiesModel = null;
+    mxExplorer.browseCacheModel = null;
+    mxExplorer.browseConstantsModel = null;
+    mxExplorer.modalArray = [];
+
+    mxExplorer.navPanelHeight = 44;
+    mxExplorer.modalInitialMaxHeight = 900;
+    mxExplorer.resizeAreaSize = 5;
+mxExplorer.maxInitialHeight = screen.height - Math.round(screen.height / 3);
+mxExplorer.maxInitialWidth = screen.width - Math.round(screen.width / 3);
+
+    mxExplorer.modalBorderWidth = 1;
+
+    mxExplorer.modalContentPaddingTop = 15;
+    mxExplorer.modalContentPaddingBottom = 15;
+    mxExplorer.modalContentPaddingLeft = 20;
+
+    mxExplorer.modalContentPaddingRight = 20;
+    mxExplorer.modalContentCellPaddingTop = 0;
+    mxExplorer.modalContentCellPaddingBottom = 0;
+    mxExplorer.modalContentCellPaddingLeft = 3;
+
+    mxExplorer.modalContentCellPaddingRight = 3;
+    mxExplorer.modalContentMaxInitialHeight = mxExplorer.maxInitialHeight - mxExplorer.navPanelHeight;
+
+    mxExplorer.modalContentMaxInitialWidth = calculateModalContentWidth(mxExplorer.maxInitialWidth);
+
+    mxExplorer.dataGridContentMaxInitialWidth = calculateDataGridContentWidth(mxExplorer.modalContentMaxInitialWidth);
+    mxExplorer.dataGridContentMaxInitialHeight = calculateDataGridContentHeight(mxExplorer.modalContentMaxInitialHeight);
+
+    mxExplorer.dataGridTopRowPadding = 5;
+
+    mxExplorer.dataTableMaxWidth = 1760;
+
+    mxExplorer.dataTableMaxHeight = 580;
+    // Make use of a shadow dom to not let app styling change the tool
+    mxExplorer.styleTextNode = document.createTextNode(
+	":host { all: initial; }"
+	+ "* { font-family: Arial, sans-serif; font-size: 14px; box-sizing: border-box; }"
+	+ ".mxExplorerModal.modal {"
+	+ "display: block !important;"
+	+ "width: fit-content; "
+	+ "height: fit-content;"
+	+ "position: absolute;"
+	+ "color: black;"
+	+ "background-color: rgba(255,255,255); /* Black w/ opacity */"
+	+ "border-style: solid;"
+	+ "border-width: " + mxExplorer.modalBorderWidth + "px;"
+	+ "border-color: rgba(0,0,0,.2);"
+	+ "border-radius: 4px;}"
+
+	+ ".mxExplorerModal .modalTitle, .mxExplorerModal .collapsibleTitle {user-select: none;}"
+
+	+ ".mxExplorerModal .hidden {display: none;}"
+
+	+ ".mxExplorerModal a {color: blue;"
+	+ "cursor: pointer;}"
+
+	+ ".mxExplorerModal .cell {"
+	+ "vertical-align: middle;"
+	+ "display: table-cell;"
+	+ "height: inherit;"
+	+ "width: inherit;}"
+
+	+ ".mxExplorerModal .modalContent {"
+	+ "overflow: auto;"
+	+ "display: block;"
+	+ "padding: " + mxExplorer.modalContentPaddingTop + "px " + mxExplorer.modalContentPaddingRight + "px " + mxExplorer.modalContentPaddingBottom + "px " + mxExplorer.modalContentPaddingLeft + "px;}"
+	
+	+ ".mxExplorerModal .modalContent .cell {"
+	+ "padding: " + mxExplorer.modalContentCellPaddingTop + "px " + mxExplorer.modalContentCellPaddingRight + "px " + mxExplorer.modalContentCellPaddingBottom + "px " + mxExplorer.modalContentCellPaddingLeft + "px;}"
+
+	+ ".mxExplorerModal .modalHeader {"
+	+ "height: " + mxExplorer.navPanelHeight + "px;"
+	+ "padding: 15px 0px 15px 20px;"
+	+ "display: flex;"
+	+ "justify-content: space-between;"
+	+ "align-items: center;"
+	+ "text-align: left;"
+	+ "border-bottom-style: solid;"
+	+ "border-bottom-width: 1px;"
+	+ "border-color: rgba(0,0,0,0.2);}"
+
+	+ ".mxExplorerModal .modalTitle.label {"
+	+ "color: rgb(102, 102, 102);}"
+
+	+ ".mxExplorerModal .navigationPanel {"
+	+ "height: " + mxExplorer.navPanelHeight + "px;"
+	+ "top: 0;"
+	+ "right: 0;}"
+
+	+ ".mxExplorerModal .navigationButton {"
+	+ "background: white;"
+	+ "padding: 0px;"
+	+ "width: 40px;"
+	+ "color: rgb(102,102,102);"
+	+ "border: none;"
+	+ "border-bottom-style: solid;"
+	+ "border-bottom-width: 1px;"
+	+ "border-bottom-color: rgba(0,0,0,0.2);"
+	+ "border-radius: 0px;"
+	+ "height: 44px;}"
 
-    + ".mxExplorerModal .table {"
-    + "margin: 0px;"
-    + "display: table;}"
+	+ ".mxExplorerModal .table {"
+	+ "margin: 0px;"
+	+ "display: table;}"
+
+	+ ".mxExplorerModal .flex {display: flex;}"
+
+	+ ".mxExplorerModal .row {"
+	+ "display: table-row;"
+	+ "margin-right: 0px;"
+	+ "margin-left: 0px;}"
 
-    + ".mxExplorerModal .flex {display: flex;}"
+	+ ".mxExplorerModal .row .step {margin-left: 15px;}"
 
-    + ".mxExplorerModal .row {"
-    + "display: table-row;"
-    + "margin-right: 0px;"
-    + "margin-left: 0px;}"
+	+ ".mxExplorerModal .col {"
+	+ "display: table-column;"
+	+ "padding-inline: 0px;}"
 
-    + ".mxExplorerModal .row .step {margin-left: 15px;}"
-
-    + ".mxExplorerModal .col {"
-    + "display: table-column;"
-    + "padding-inline: 0px;}"
-
-    + ".mxExplorerModal .cellContent {overflow-wrap: break-word;}"
-
-    + ".mxExplorerModal .label {"
-    + "font-weight: bold;"
-    + "padding: 0px;"
-    + "color: rgb(51,51,51);}"
-
-    + ".mxExplorerModal input {"
-    + "padding-right: 5px;"
-    + "width: 100%;}"
-
-    + ".mxExplorerModal .tableColumn {"
-    + "border-width: 1px;"
-    + "border-style: solid;"
-    + "padding: 5px;"
-    + "overflow: auto;"
-    + "max-width: 250px;}"
-
-    + ".mxExplorerModal .dataGridTopRow {"
-    + "padding: " + mxExplorer.dataGridTopRowPadding + "px;"
-    + "justify-content: space-between;}"
-
-    + ".mxExplorerModal .dataGridNavigationRow {"
-    + "padding: 5px;"
-    + "justify-content: center;}"
-
-    + ".mxExplorerModal .evenRow {background: rgba(0,0,0,0.05);}"
-
-    + ".mxExplorerModal .sortingText {"
-    + "padding-inline: 5px;"
-    + "line-height: 26px;}"
-
-    + ".mxExplorerModal .sortingContainer {"
-    + "justify-content: space-between;"
-    + "border-style: solid;"
-    + "border-width: 1px;"
-    + "border-color: rgb(231,231,233);"
-    + "padding: 8px;"
-    + "border-radius: 4px;}"
-
-    + ".mxExplorerModal .sortingContainer button{"
-    + "background: none;"
-    + "border: none;"
-    + "padding: 0px 5px;}"
-
-    + ".mxExplorerModal .sortingContainer button:hover{"
-    + "background: none;"
-    + "border: none;}"
-
-    + ".mxExplorerModal .sortButton {"
-    + "background: inherit;"
-    + "border: none;"
-    + "padding: 0px 5px;"
-    + "line-height: 26px;}"
-
-    + ".mxExplorerModal .headerColumnLabel {line-height: 26px;}"
-
-    + ".mxExplorerModal .dataTable {"
-    + "display: block !important;"
-    + "overflow: auto;}"
-
-    + ".mxExplorerModal .dataCell {white-space: nowrap}"
-
-    + ".mxExplorerModal .dropTarget {width: 5px;}"
-
-    + ".mxExplorerModal .dragOver {width: 50px;}"
-
-    + ".mxExplorerModal .singleSortingAttribute {padding-left: 5px;}"
-
-    + ".mxExplorerModal .searchButtonCell {width: 70px;}"
-
-    + ".mxExplorerModal .dataGridContainer {"
-    + "display: block; "
-    + "overflow: auto;}"
-
-    + ".mxExplorerModal .valign-t {vertical-align: top;}"
-
-    + ".mxExplorerModal .padding-r-5 {padding-right: 5px;}"
-
-    + ".mxExplorerModal .talign-r {text-align: right;}"
-
-    + ".mxExplorerModal .miniButton {"
-    + "padding: 0px 5px;"
-    + "background: none;"
-    + "border: none;}"
-
-    + ".mxExplorerModal .table .table {background-color: inherit;}"
-
-    + ".mxExplorerModal a {"
-    + "color: rgb(172, 139, 255);}"
-
-    + ".mxExplorerModal a:hover {"
-    + "color: rgb(118, 62, 255)}"
-
-    + ".mxExplorerModal button {"
-    + "border-style: solid;"
-    + "border-width: 1px;"
-    + "border-color: rgb(231,231,233);"
-    + "border-radius: 8px;"
-    + "color: rgb(154,113,255);"
-    + "padding: 8.4px 14px;"
-    + "background-color: rgb(255,255,255);}"
-
-    + ".mxExplorerModal button:hover {"
-    + "background-color: rgb(231,231,233);}"
-
-    + ".mxExplorerModal .padding-inline {"
-    + "padding-inline: 10px !important;}"
-
-    + ".mxExplorerModal .button-panel {"
-    + "margin-left: 5px;"
-    + "display: flex;"
-    + "flex-direction: row;"
-    + "flex-wrap: wrap;"
-    + "width: 250px;}"
-
-    + ".mxExplorerModal .button-panel button {"
-    + "margin-bottom: 5px;}"
-
-    + ".mxExplorerModal .fitContent {"
-    + "width: fit-content;"
-    + "height: fit-content;}"
-
-    + ".mxExplorerModal .green {color: green;}"
-
-    + ".mxExplorerModal .red {color: red;}"
-
-    // Column picker styles
-    + ".mxExplorerModal .columnPickerCell {"
-    + "position: sticky;"
-    + "right: 0;"
-    + "background: white;"
-    + "z-index: 5;"
-    + "border-left: 1px solid rgba(0,0,0,0.1);}"
-
-    + ".mxExplorerModal .columnPickerWrapper {"
-    + "position: relative;"
-    + "display: flex;"
-    + "align-items: center;"
-    + "justify-content: center;}"
-
-    + ".mxExplorerModal .columnPickerDropdown {"
-    + "position: absolute;"
-    + "top: 100%;"
-    + "right: 0;"
-    + "background: white;"
-    + "border: 1px solid rgba(0,0,0,0.2);"
-    + "border-radius: 4px;"
-    + "z-index: 100;"
-    + "min-width: 180px;"
-    + "max-height: 300px;"
-    + "overflow-y: auto;"
-    + "box-shadow: 0 2px 8px rgba(0,0,0,0.15);"
-    + "padding: 4px 0;}"
-
-    + ".mxExplorerModal .columnPickerItem {"
-    + "display: flex;"
-    + "align-items: center;"
-    + "justify-content: space-between;"
-    + "padding: 4px 10px;"
-    + "white-space: nowrap;}"
-
-    + ".mxExplorerModal .columnPickerItem:hover {"
-    + "background: rgba(0,0,0,0.05);"
-    + "cursor: pointer;}"
-
-    + ".mxExplorerModal .columnPickerItem span {"
-    + "margin-right: 12px;"
-    + "color: rgb(51,51,51);"
-    + "font-weight: normal;}"
-
-    + ".mxExplorerModal .columnPickerItem input[type='checkbox'] {"
-    + "flex-shrink: 0;"
-    + "width: 14px;"
-    + "height: 14px;"
-    + "margin: 0;}"
-
-    + ".mxExplorerModal .columnPickerDivider {"
-    + "border: none;"
-    + "border-top: 1px solid rgba(0,0,0,0.1);"
-    + "margin: 4px 0;}"
+	+ ".mxExplorerModal .cellContent {overflow-wrap: break-word;}"
+
+	+ ".mxExplorerModal .label {"
+	+ "font-weight: bold;"
+	+ "padding: 0px;"
+	+ "color: rgb(51,51,51);}"
+
+	+ ".mxExplorerModal input {"
+	+ "padding-right: 5px;"
+	+ "width: 100%;}"
+
+	+ ".mxExplorerModal .tableColumn {"
+	+ "border-width: 1px;"
+	+ "border-style: solid;"
+	+ "padding: 5px;"
+	+ "overflow: auto;"
+	+ "max-width: 250px;}"
+
+	+ ".mxExplorerModal .dataGridTopRow {"
+	+ "padding: " + mxExplorer.dataGridTopRowPadding + "px;"
+	+ "justify-content: space-between;}"
+
+	+ ".mxExplorerModal .dataGridNavigationRow {"
+	+ "padding: 5px;"
+	+ "justify-content: center;}"
+
+	+ ".mxExplorerModal .evenRow {background: rgba(0,0,0,0.05);}"
+
+	+ ".mxExplorerModal .sortingText {"
+	+ "padding-inline: 5px;"
+	+ "line-height: 26px;}"
+
+	+ ".mxExplorerModal .sortingContainer {"
+	+ "justify-content: space-between;"
+	+ "border-style: solid;"
+	+ "border-width: 1px;"
+	+ "border-color: rgb(231,231,233);"
+	+ "padding: 8px;"
+	+ "border-radius: 4px;}"
+
+	+ ".mxExplorerModal .sortingContainer button{"
+	+ "background: none;"
+	+ "border: none;"
+	+ "padding: 0px 5px;}"
+
+	+ ".mxExplorerModal .sortingContainer button:hover{"
+	+ "background: none;"
+	+ "border: none;}"
+
+
+	+ ".mxExplorerModal .sortButton {"
+	+ "background: inherit;"
+	+ "border: none;"
+	+ "padding: 0px 5px;"
+	+ "line-height: 26px;}"
+
+	+ ".mxExplorerModal .headerColumnLabel {line-height: 26px;}"
+
+	+ ".mxExplorerModal .dataTable {"
+	+ "display: block !important;"
+	+ "overflow: auto;}"
+
+	+ ".mxExplorerModal .dataCell {white-space: nowrap}"
+
+	+ ".mxExplorerModal .dropTarget {width: 5px;}"
+
+	+ ".mxExplorerModal .dragOver {width: 50px;}"
+
+	+ ".mxExplorerModal .singleSortingAttribute {padding-left: 5px;}"
+
+	+ ".mxExplorerModal .searchButtonCell {width: 70px;}"
+
+	+ ".mxExplorerModal .dataGridContainer {"
+	+ "display: block; "
+	+ "overflow: auto;}"
+
+	+ ".mxExplorerModal .valign-t {vertical-align: top;}"
+
+	+ ".mxExplorerModal .padding-r-5 {padding-right: 5px;}"
+
+	+ ".mxExplorerModal .talign-r {text-align: right;}"
+
+	+ ".mxExplorerModal .miniButton {"
+	+ "padding: 0px 5px;"
+	+ "background: none;"
+	+ "border: none;}"
+
+	+ ".mxExplorerModal .table .table {background-color: inherit;}"
+
+	+ ".mxExplorerModal a {"
+	+ "color: rgb(172, 139, 255);}"
+
+	+ ".mxExplorerModal a:hover {"
+	+ "color: rgb(118, 62, 255)}"
+
+	+ ".mxExplorerModal button {"
+	+ "border-style: solid;"
+	+ "border-width: 1px;"
+	+ "border-color: rgb(231,231,233);"
+	+ "border-radius: 8px;"
+	+ "color: rgb(154,113,255);"
+	+ "padding: 8.4px 14px;"
+	+ "background-color: rgb(255,255,255);}"
+
+	+ ".mxExplorerModal button:hover {"
+	+ "background-color: rgb(231,231,233);}"
+
+	+ ".mxExplorerModal .padding-inline {"
+	+ "padding-inline: 10px !important;}"
+	
+	+ ".mxExplorerModal .button-panel {"
+	+ "margin-left: 5px;"
+	+ "display: flex;"
+	+ "flex-direction: row;"
+	+ "flex-wrap: wrap;"
+	+ "width: 250px;}"
+
+	+ ".mxExplorerModal .button-panel button {"
+	+ "margin-bottom: 5px;}"
+
+	+ ".mxExplorerModal .fitContent {"
+	+ "width: fit-content;"
+	+ "height: fit-content;}"
+
+	+ ".mxExplorerModal .green {color: green;}"
+
+	+ ".mxExplorerModal .red {color: red;}"
+
+	+ ".mxExplorerModal .columnPickerCell {"
+	+ "position: sticky;"
+	+ "right: 0;"
+	+ "background: white;"
+	+ "z-index: 5;"
+	+ "border-left: 1px solid rgba(0,0,0,0.1);}"
+
+	+ ".mxExplorerModal .columnPickerWrapper {"
+	+ "position: relative;"
+	+ "display: flex;"
+	+ "align-items: center;"
+	+ "justify-content: center;}"
+
+	+ ".mxExplorerModal .columnPickerDropdown {"
+	+ "position: absolute;"
+	+ "top: 100%;"
+	+ "right: 0;"
+	+ "background: white;"
+	+ "border: 1px solid rgba(0,0,0,0.2);"
+	+ "border-radius: 4px;"
+	+ "z-index: 100;"
+	+ "min-width: 180px;"
+	+ "max-height: 300px;"
+	+ "overflow-y: auto;"
+	+ "box-shadow: 0 2px 8px rgba(0,0,0,0.15);"
+	+ "padding: 4px 0;}"
+
+	+ ".mxExplorerModal .columnPickerItem {"
+	+ "display: flex;"
+	+ "align-items: center;"
+	+ "justify-content: space-between;"
+	+ "padding: 4px 10px;"
+	+ "white-space: nowrap;}"
+
+	+ ".mxExplorerModal .columnPickerItem:hover {"
+	+ "background: rgba(0,0,0,0.05);"
+	+ "cursor: pointer;}"
+
+	+ ".mxExplorerModal .columnPickerItem span {"
+	+ "margin-right: 12px;"
+	+ "color: rgb(51,51,51);"
+	+ "font-weight: normal;}"
+
+	+ ".mxExplorerModal .columnPickerItem input[type='checkbox'] {"
+	+ "flex-shrink: 0;"
+	+ "width: 14px;"
+	+ "height: 14px;"
+	+ "margin: 0;}"
+
+	+ ".mxExplorerModal .columnPickerDivider {"
+	+ "border: none;"
+	+ "border-top: 1px solid rgba(0,0,0,0.1);"
+	+ "margin: 4px 0;}"
 );
 
-mxExplorer.style = document.createElement("style");
-mxExplorer.style.appendChild(mxExplorer.styleTextNode);
-mxExplorer.head.appendChild(mxExplorer.style);
+    mxExplorer.style = document.createElement("style");
+    mxExplorer.style.appendChild(mxExplorer.styleTextNode);
+    mxExplorer.head.appendChild(mxExplorer.style);
 
-const emptyPagingText = "0 to 0 of 0";
+	const emptyPagingText = "0 to 0 of 0";
 
-loadNPEntities();
+    loadNPEntities();
 
-function afterLoadNPEntities() {
-	mxExplorer.modal = addModalClosableDraggable(mxExplorer.body, mxExplorer.appTitle, false, true);
-	// Close handler adjusted so it closes the shadowhost
-	mxExplorer.modal.closeButton.addEventListener("click", event => {
-		event.stopPropagation();
-		document.body.removeChild(mxExplorer.shadowHost);
-		// mxExplorer = null;
-	});
+    function afterLoadNPEntities() {
+        mxExplorer.modal = addModalClosableDraggable(mxExplorer.body, mxExplorer.appTitle, false, true);
 
-	mxExplorer.modalContentTable = addTable(mxExplorer.modal.contentCell);
+        mxExplorer.modal.closeButton.addEventListener("click", (event) => {
+            event.stopPropagation();
+            document.body.removeChild(mxExplorer.shadowHost);
+            mxExplorer = null
+        });
 
-	mxExplorer.headerRow = addRow(mxExplorer.modalContentTable, false);
+        mxExplorer.modalContentTable = addTable(mxExplorer.modal.contentCell);
 
-	mxExplorer.headerColumn = addCell(mxExplorer.headerRow);
+        mxExplorer.headerRow = addRow(mxExplorer.modalContentTable, false);
+        
+		mxExplorer.headerColumn = addCell(mxExplorer.headerRow);
+        
+		mxExplorer.headerTable = addTable(mxExplorer.headerColumn);
+        
+		mxExplorer.headerTableRow = addRow(mxExplorer.headerTable, false);
+        
+		mxExplorer.headerTableColumn = addCell(mxExplorer.headerTableRow);
+        
+		mxExplorer.infoTable = addTable(mxExplorer.headerTableColumn);
+        
+		mxExplorer.contentRow = addRow(mxExplorer.modalContentTable, false);
+        
+		mxExplorer.contentColumn = addCell(mxExplorer.contentRow);
+        
+		mxExplorer.contentTable = addTable(mxExplorer.contentColumn);
+        
+		addLabelObject(mxExplorer.infoTable,"Use this link to logout", createClickableLink("Logout", () => {
+            mx.logout();
+        }));
+        addLabelValue(mxExplorer.infoTable, "Mendix version", mx.version);
+        addClass(addLabelValue(mxExplorer.infoTable, "User", mx.session.getConfig().user.attributes.Name.value), "evenRow");
+        addLabelValue(mxExplorer.infoTable, "User GUID", mx.session.getUserId());
+        addClass(addLabelValue(mxExplorer.infoTable, "User roles", splitArrayToString(mx.session.getUserRoleNames())), "evenRow");
+        addLabelValue(mxExplorer.infoTable, "User is guest", mx.session.isGuest());
 
-	mxExplorer.headerTable = addTable(mxExplorer.headerColumn);
+        if (mx.ui.getContentForm !== undefined) {
+            addClass(addLabelValue(mxExplorer.infoTable, "Current page", mx.ui.getContentForm().path), "evenRow");
+        }
 
-	mxExplorer.headerTableRow = addRow(mxExplorer.headerTable, false);
+        mxExplorer.browseEntitiesRow = addRow(mxExplorer.contentTable);
+        mxExplorer.browseEntitiesCell = addCell(mxExplorer.browseEntitiesRow);
+        mxExplorer.browseEntitiesLink = addLink(mxExplorer.browseEntitiesCell, "Browse entities");
+        mxExplorer.browseEntitiesLink.addEventListener("click", browseEntityLinkOnClick);
 
-	mxExplorer.headerTableColumn = addCell(mxExplorer.headerTableRow);
+        mxExplorer.browseCacheRow = addRow(mxExplorer.contentTable);
+        mxExplorer.browseCacheCell = addCell(mxExplorer.browseCacheRow);
+        mxExplorer.browseCacheLink = addLink(mxExplorer.browseCacheCell, "Browse cache");
+        mxExplorer.browseCacheLink.addEventListener("click", browseCacheLinkOnClick);
 
-	mxExplorer.infoTable = addTable(mxExplorer.headerTableColumn);
+        mxExplorer.browseConstansRow = addRow(mxExplorer.contentTable);
+        mxExplorer.browseConstansCell = addCell(mxExplorer.browseConstansRow);
+        mxExplorer.browseConstansLink = addLink(mxExplorer.browseConstansCell, "Browse constants");
+        mxExplorer.browseConstansLink.addEventListener("click", browseConstantsLinkOnClick);
 
-	mxExplorer.contentRow = addRow(mxExplorer.modalContentTable, false);
+        mxExplorer.entityRows = new Map();
 
-	mxExplorer.contentColumn = addCell(mxExplorer.contentRow);
+        mxExplorer.modal.style.zIndex = 1000000;
+        initModal(mxExplorer.modal, true);
+    }
 
-	mxExplorer.contentTable = addTable(mxExplorer.contentColumn);
+    function browseEntityLinkOnClick(event) {
+        if (mxExplorer.browseEntitiesModel) {
+            mxExplorer.browseEntitiesModel.style.zIndex = ++mxExplorer.zIndex;
+            if (mxExplorer.browseEntitiesModel.minified) {
+                removeHiddenClass(mxExplorer.browseEntitiesModel.contentRow);
+                mxExplorer.browseEntitiesModel.minified = false;
+            }
+        } else {
+            addBrowseEntitiesModel();
+        }
+        event.stopPropagation();
+    }
 
-	addLabelObject(mxExplorer.infoTable,"Use this link to logout", createClickableLink("Logout", () => {
-		mx.logout();
-	}));
-	addLabelValue(mxExplorer.infoTable, "Mendix version", mx.version);
-	addClass(addLabelValue(mxExplorer.infoTable, "User", mx.session.getUserObject().metaData.name), "evenRow");
-	addLabelValue(mxExplorer.infoTable, "User GUID", mx.session.getUserId());
-	addClass(addLabelValue(mxExplorer.infoTable, "User roles", splitArrayToString(mx.session.getUserRoleNames())), "evenRow");
-	addLabelValue(mxExplorer.infoTable, "User is guest", mx.session.isGuest());
-	// Only in DoJo clients the Current page works
-	if (mx.ui.getContentForm !== undefined) {
-		addClass(addLabelValue(mxExplorer.infoTable, "Current page", mx.ui.getContentForm().path), "evenRow");
-	}
+    function browseCacheLinkOnClick(event) {
+        if (mxExplorer.browseCacheModel) {
+            mxExplorer.browseCacheModel.style.zIndex = ++mxExplorer.zIndex;
+            if (mxExplorer.browseCacheModel.minified) {
+                removeHiddenClass(mxExplorer.browseCacheModel.contentRow);
+                mxExplorer.browseCacheModel.minified = false;
+            }
+        } else {
+            addBrowseCacheModel();
+        }
+        event.stopPropagation();
+    }
 
-	mxExplorer.browseEntitiesRow = addRow(mxExplorer.contentTable);
-	mxExplorer.browseEntitiesCell = addCell(mxExplorer.browseEntitiesRow);
-	mxExplorer.browseEntitiesLink = addLink(mxExplorer.browseEntitiesCell, "Browse entities");
-	mxExplorer.browseEntitiesLink.addEventListener("click", browseEntityLinkOnClick);
-
-	mxExplorer.browseCacheRow = addRow(mxExplorer.contentTable);
-	mxExplorer.browseCacheCell = addCell(mxExplorer.browseCacheRow);
-	mxExplorer.browseCacheLink = addLink(mxExplorer.browseCacheCell, "Browse cache");
-	mxExplorer.browseCacheLink.addEventListener("click", browseCacheLinkOnClick);
-
-	mxExplorer.browseConstansRow = addRow(mxExplorer.contentTable);
-	mxExplorer.browseConstansCell = addCell(mxExplorer.browseConstansRow);
-	mxExplorer.browseConstansLink = addLink(mxExplorer.browseConstansCell, "Browse constants");
-	mxExplorer.browseConstansLink.addEventListener("click", browseConstantsLinkOnClick);
-
-	mxExplorer.entityRows = new Map();
-
-	mxExplorer.modal.style.zIndex = 1000000;
-	initModal(mxExplorer.modal, true);
-}
-
-function browseEntityLinkOnClick(event) {
-	if (mxExplorer.browseEntitiesModel) {
-		mxExplorer.browseEntitiesModel.style.zIndex = ++mxExplorer.zIndex;
-		if (mxExplorer.browseEntitiesModel.minified) {
-			removeHiddenClass(mxExplorer.browseEntitiesModel.contentRow);
-			mxExplorer.browseEntitiesModel.minified = false;
-		}
-	} else {
-		addBrowseEntitiesModel();
-	}
-	event.stopPropagation();
-}
-
-function browseCacheLinkOnClick(event) {
-	if (mxExplorer.browseCacheModel) {
-		mxExplorer.browseCacheModel.style.zIndex = ++mxExplorer.zIndex;
-		if (mxExplorer.browseCacheModel.minified) {
-			removeHiddenClass(mxExplorer.browseCacheModel.contentRow);
-			mxExplorer.browseCacheModel.minified = false;
-		}
-	} else {
-		addBrowseCacheModel();
-	}
-	event.stopPropagation();
-}
-
-function browseConstantsLinkOnClick(event) {
-	if (mxExplorer.browseConstantsModel) {
-		mxExplorer.browseConstantsModel.style.zIndex = ++mxExplorer.zIndex;
-		if (mxExplorer.browseConstantsModel.minified) {
-			removeHiddenClass(mxExplorer.browseConstantsModel.contentRow);
-			mxExplorer.browseConstantsModel.minified = false;
-		}
-	} else {
-		addBrowseConstantsModel();
-	}
-	event.stopPropagation();
-}
+    function browseConstantsLinkOnClick(event) {
+        if (mxExplorer.browseConstantsModel) {
+            mxExplorer.browseConstantsModel.style.zIndex = ++mxExplorer.zIndex;
+            if (mxExplorer.browseConstantsModel.minified) {
+                removeHiddenClass(mxExplorer.browseConstantsModel.contentRow);
+                mxExplorer.browseConstantsModel.minified = false;
+            }
+        } else {
+            addBrowseConstantsModel();
+        }
+        event.stopPropagation();
+    }
 
 function addBrowseEntitiesModel() {
 	mxExplorer.browseEntitiesModel = new addModalClosableDraggable(mxExplorer.body, "Browse entities");
@@ -506,7 +541,7 @@ function addBrowseCacheModel() {
 function addBrowseConstantsModel() {
 	mxExplorer.browseConstantsModel = addModalClosableDraggable(mxExplorer.body, "Browse constants");
 	const contentTable = addTable(mxExplorer.browseConstantsModel.contentCell);
-
+	
 	const constantsRow = addRow(contentTable);
 	const constantsCell = addCell(constantsRow);
 	const constantsContainer = addContainer(constantsCell);
@@ -531,13 +566,12 @@ function addCacheContainerContent(contentTable) {
 	});
 }
 
-    function addConstantsTableContent(contentTable) {
-        let entityCounter = 1;
-        // FIX: was window.mx.session.sessionData.constants
-        mx.session.getConfig().constants.forEach(function(item, index) {
-            addConstantsEntry(item, contentTable, entityCounter++)
-        })
-    }
+function addConstantsTableContent(contentTable) {
+	let entityCounter = 1;
+	mx.session.getConfig().constants.forEach(function (item, index) {
+		addConstantsEntry(item, contentTable, entityCounter++);
+	});
+}
 
 function addClientCacheEntry(item, table, entityCounter, showEntity = true) {
 	const row = addRow(table, false);
@@ -597,469 +631,443 @@ function addSearchLink(parent, entity) {
 	searchLink.addEventListener("click", searchLinkOnClick);
 }
 
-function entityLinkOnClick() {
-	this.open = !this.open;
-	if (this.open) {
-		const entityContentRow = addRowAfter(this.row);
-		const attributeColumn = addCell(entityContentRow);
-		this.entityContentRow = entityContentRow;
-		const entityObject = mxExplorer.entities[this.entity];
-		const attributes = entityObject.getAttributes();
-		addEntityAttributePanel(attributeColumn, this.entity, attributes);
-		addCell(entityContentRow)
-	} else {
-		if (this.entityContentRow) {
-			this.entitiesTable.removeChild(this.entityContentRow)
-		}
-	}
-}
+    function entityLinkOnClick() {
+        this.open = !this.open;
+        if (this.open) {
+            const entityContentRow = addRowAfter(this.row);
+            const attributeColumn = addCell(entityContentRow);
+            this.entityContentRow = entityContentRow;
+            const entityObject = mxExplorer.entities[this.entity];
+            const attributes = entityObject.getAttributes();
+            addEntityAttributePanel(attributeColumn, this.entity, attributes);
+            addCell(entityContentRow);
+        } else {
+            if (this.entityContentRow) {
+                this.entitiesTable.removeChild(this.entityContentRow);
+            }
+        }
+    }
 
-// function getAttributes(entity) {
-// 	return Object.entries(mxExplorer.entities.get(entity).attributes).map((attribute) => {return attribute[0]});
-// }
-
-function addEntityAttributePanel(attributeColumn, entityName, attributes) {
-	const panel = addTableNoMargin(attributeColumn);
-	const entity = mxExplorer.entities[entityName];
-	attributes.forEach(attribute => {
-		let row = addRow(panel, true);
-		let column = addCell(row);
-		let writeAccess = true;
-		// FIX: was mx.session.sessionData.metadata
-		mx.session.getConfig().metadata.every(entityMeta => {
-			if (entityMeta.objectType === entityName) {
-				const attributeObject = entityMeta.attributes[attribute];
-				if (attributeObject && attributeObject.readonly !== undefined && attributeObject.readonly) {
-					writeAccess = false
-				}
-				return false
-			}
-			return true
-		});
-		const label = addTextNode(column, attribute + " (" + entity.getAttributeType(attribute) + ")");
-		if (writeAccess) {
-			addClass(column, "green");
-		} else {
-			addClass(column, "red");
-		}
-	});
-	return panel;
-}
-
-function searchLinkOnClick(event) {
-	event.stopPropagation();
-	const parentAttributes = this.attributesParam;
-	const entity = this.entity;
-	const dataModal = addModalClosableDraggable(mxExplorer.body, entity);
-	addDataGrid(dataModal.contentCell, parentAttributes, entity, '', false, dataModal);
-}
-
-function addLabelObject(table, labelParam, object) {
-	const row = addRow(table, false);
-	const labelColumn = addCell(row);
-	addLabel(labelColumn, labelParam + ":");
-	const objectCell = addCell(row);
-	objectCell.appendChild(object);
-	return row;
-}
-
-function addLabelValue(table, labelParam, valueParam) {
-	const valueContainer = createContainer();
-	addClass(valueContainer, "cellContent");
-	addTextNode(valueContainer, valueParam);
-	const row = addLabelObject(table, labelParam, valueContainer);
-	return row;
-}
-
-function addLabelAttributeToContainer(table, labelParam, valueParam, attribute, entityObject) {
-	const row = addRow(table, false);
-
-	const labelColumn = addCell(row);
-	addLabel(labelColumn, labelParam + ":");
-
-	const valueColumn = addCell(row);
-	addValueElement(valueColumn, valueParam, attribute, entityObject);
-	return row;
-}
-
-function addValueElement(column, valueParam, attributeName, entityObject) {
-    // Special handling for GUID attribute
-    if (attributeName === "GUID" || !entityObject.attributes[attributeName]) {
-        if (attributeName === "GUID" && valueParam) {
-            // Make GUID clickable to open entity detail page
-            const link = addLink(column, valueParam);
-            link.addEventListener("click", (event) => {
-                event.stopPropagation();
-                mxDataGetEntry(valueParam, (entry) => {
-                    addDataPage(entry, Object.keys(entityObject.attributes));
-                }, getDefaultMxDataGetErrorHandler());
+    function addEntityAttributePanel(attributeColumn, entityName, attributes) {
+        const panel = addTableNoMargin(attributeColumn);
+        const entityObject = mxExplorer.entities[entityName];
+        attributes.forEach((attribute) => {
+            let row = addRow(panel, true);
+            let column = addCell(row);
+            let writeAccess = true;
+            mx.session.getConfig().metadata.every(entityMeta => {
+                if (entityMeta.objectType === entityName) {
+                    const attributeObject = entityMeta.attributes[attribute];
+                    if (attributeObject && attributeObject.readonly !== undefined && attributeObject.readonly) {
+                        writeAccess = false;
+                    }
+                    return false;
+                }
+                return true;
             });
-            link.objectReference = true;
-            return link;
+            const label = addTextNode(column, attribute + " (" + entityObject.getAttributeType(attribute) + ")");
+			if (writeAccess) {
+                addClass(column, "green");
+            } else {
+                addClass(column, "red");
+            }
+        });
+        return panel;
+    }
+
+    function searchLinkOnClick(event) {
+        event.stopPropagation();
+        const parentAttributes = this.attributesParam;
+        const entity = this.entity;
+        const dataModal = addModalClosableDraggable(mxExplorer.body, entity);
+        addDataGrid(dataModal.contentCell, parentAttributes, entity, '', false, dataModal);
+    }
+
+    function addLabelObject(table, labelParam, object) {
+        const row = addRow(table, false);
+        const labelColumn = addCell(row);
+        addLabel(labelColumn, labelParam + ":");
+        const objectCell = addCell(row);
+        objectCell.appendChild(object);
+        return row;
+    }
+
+    function addLabelValue(table, labelParam, valueParam) {
+        const valueContainer = createContainer();
+        addClass(valueContainer, "cellContent");
+        addTextNode(valueContainer, valueParam);
+        const row = addLabelObject(table, labelParam, valueContainer);
+        return row;
+    }
+
+    function addLabelAttributeToContainer(table, labelParam, valueParam, attribute, entityObject) {
+        const row = addRow(table, false);
+        
+		const labelColumn = addCell(row);
+		addLabel(labelColumn, labelParam + ":");
+        
+		const valueColumn = addCell(row);
+        addValueElement(valueColumn, valueParam, attribute, entityObject);
+        return row;
+    }
+
+    function addValueElement(column, valueParam, attribute, entityObject) {
+        if (entityObject.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
+            addObjectReferenceLink(column, valueParam, attribute, entityObject)
+        } else if (entityObject.getAttributeType(attribute) === "ObjectReferenceSet" && valueParam !== "") {
+            valueParam.forEach((entry) => {
+                addObjectReferenceLink(column, entry, attribute, entityObject);
+            })
         } else {
             const textNode = addTextNode(column, valueParam);
             textNode.objectReference = false;
             return textNode;
         }
     }
-    
-    if (getAttributeType(entityObject, attributeName) === "ObjectReference" && valueParam !== "") {
-        addObjectReferenceLink(column, valueParam);
-    } else if (getAttributeType(entityObject, attributeName) === "ObjectReferenceSet" && valueParam !== "") {
-        valueParam.forEach((entry) => {
-            addObjectReferenceLink(column, entry);
-        })
-    } else {
-        const textNode = addTextNode(column, valueParam);
-        textNode.objectReference = false;
+
+    function addObjectReferenceLink(column, valueParam, attribute, entityObject) {
+        const link = addLink(column, valueParam);
+        link.addEventListener("click", () => {mxDataGetEntry(valueParam,
+		(entry) => {
+                return addDataPage(entry, mxExplorer.entities[entry.getEntity()].getAttributes());
+				}, (error) => {
+					window.alert("Could not execute query, error: " + error.status);
+            })});
+        link.objectReference = true;
+        return link;
+    }
+
+    function addCell(parent) {
+        const cell = addContainer(parent);
+        addClasses(cell, ["cell"]);
+        return cell;
+    }
+
+    function createContainer() {
+        const container = document.createElement("div");
+        return container;
+    }
+
+    function addContainer(parent) {
+        const container = createContainer();
+        parent.appendChild(container);
+        return container;
+    }
+
+    function addContentContainer(parent) {
+        const container = addContainer(parent);
+        addClass(container,"contentContainer");
+        return container;
+    }
+
+    function addContainerAfter(peer) {
+        const column = document.createElement("div");
+        peer.after(column);
+        return column;
+    }
+
+    function addFlex(parent) {
+        const flex = addContainer(parent);
+        addClass(flex, "flex");
+        return flex;
+    }
+
+    function addLinkedCell(parent, content, onClick) {
+        const cell = addCell(parent);
+        const link = addLink(cell, content);
+        link.addEventListener("click", onClick);
+        return cell;
+    }
+
+    function addRow(parent, step) {
+        const row = addContainer(parent);
+        addClass(row, "row");
+        if (step) {
+            addClass(row, "step");
+        }
+        return row;
+    }
+
+    function addRowAfter(peer, step) {
+        const row = addContainerAfter(peer);
+        addClass(row, "row");
+        if (step) {
+            addClass(row, "step");
+        }
+        return row;
+    }
+
+    function addTableNoMargin(parent) {
+        const table = addTable(parent);
+        addAttributeValue(table, "style", "margin: 0px;");
+        return table;
+    }
+
+    function addTable(parent) {
+        const table = addContainer(parent);
+        addClass(table, "table");
+        return table;
+    }
+
+    function addText(parent, textparam) {
+        const text = addContainer(parent);
+        addClass(text, "text");
+        addTextNode(text, textparam);
+        return text;
+    }
+
+    function addTextNode(parent, text) {
+        const textNode = document.createTextNode(text);
+        parent.appendChild(textNode);
         return textNode;
     }
-}
 
-function addObjectReferenceLink(column, valueParam, attribute, entityObject) {
-	const link = addLink(column, valueParam);
-	link.addEventListener("click", () => {
-		mxDataGetEntry(valueParam, entry => {
-			return addDataPage(entry, mxExplorer.entities[entry.getEntity()].getAttributes())
-		}, error => {
-			window.alert("Could not execute query, error: " + error.status);
-		})
-	});
-	link.objectReference = true;
-	return link;
-}
+    function addAttributeValue(object, attribute, value) {
+        if (object.getAttribute(attribute)) {
+            object.setAttribute(attribute, object.getAttribute(attribute) + value);
+        } else {
+            object.setAttribute(attribute, value);
+        }
+    }
 
-function addCell(parent) {
-	const cell = addContainer(parent);
-	addClasses(cell, ["cell"]);
-	return cell;
-}
+    function addInputField(parent) {
+        const input = document.createElement("input");
+        input.type = "text";
+        parent.appendChild(input);
+        return input;
+    }
 
-function createContainer() {
-	const container = document.createElement("div");
-	return container;
-}
+    function addTextArea(parent, columns = 50, rows = 4) {
+        const textArea = document.createElement("textarea");
+        textArea.rows = rows;
+        textArea.cols = columns;
+        parent.appendChild(textArea);
+        return textArea;
+    }
 
-function addContainer(parent) {
-	const container = createContainer();
-	parent.appendChild(container);
-	return container;
-}
+    function createLink(text) {
+        const link = document.createElement("a");
+        addTextNode(link, text);
+        return link;
+    }
 
-function addContentContainer(parent) {
-	const container = addContainer(parent);
-	addClass(container,"contentContainer");
-	return container;
-}
+    function addLink(parent, text) {
+        const link = createLink(text);
+        parent.appendChild(link);
+        return link;
+    }
 
-function addContainerAfter(peer) {
-	const column = document.createElement("div");
-	peer.after(column);
-	return column;
-}
+    function createClickableLink(text, onClick) {
+        const link = createLink(text);
+        link.addEventListener("click", onClick);
+        return link;
+    }
 
-function addFlex(parent) {
-	const flex = addContainer(parent);
-	addClass(flex, "flex");
-	return flex;
-}
+    function addClickableLink(parent, text, onClick) {
+        const link = createClickableLink(text, onClick);
+        parent.appendChild(link);
+        return link;
+    }
 
-function addLinkedCell(parent, content, onClick) {
-	const cell = addCell(parent);
-	const link = addLink(cell, content);
-	link.addEventListener("click", onClick);
-	return cell;
-}
+    function addLabel(parent, labelParam) {
+        const label = addContainer(parent);
+        addClass(label, "label");
+        label.textNode = addTextNode(label, labelParam);
+        return label;
+    }
 
-function addRow(parent, step) {
-	const row = addContainer(parent);
-	addClass(row, "row");
-	if (step) {
-		addClass(row, "step");
-	}
-	return row;
-}
+    function addButton(parent, text) {
+        const button = document.createElement("button");
+        addTextNode(button, text);
+        addAttributeValue(button, "type", "button");
+        parent.appendChild(button);
+        return button;
+    }
 
-function addRowAfter(peer, step) {
-	const row = addContainerAfter(peer);
-	addClass(row, "row");
-	if (step) {
-		addClass(row, "step");
-	}
-	return row;
-}
+    function addClickableButton(parent, text, onClick) {
+        const button = addButton(parent, text);
+        button.addEventListener("click", onClick);
+    }
 
-function addTableNoMargin(parent) {
-	const table = addTable(parent);
-	addAttributeValue(table, "style", "margin: 0px;");
-	return table;
-}
+    function addResizableModal(parent, title) {
+        const modal = addContainer(parent);
+        mxExplorer.modalArray.push(modal);
+        addClasses(modal, ["table", "modal"]);
+        addClass(modal, "mxExplorerModal");
+		
+		//This table is used to create the resize divs around the center content container
+        const modalTable = addTable(modal);
 
-function addTable(parent) {
-	const table = addContainer(parent);
-	addClass(table, "table");
-	return table;
-}
+		//Top row
+        const topRow = addRow(modalTable);
 
-function addText(parent, textparam) {
-	const text = addContainer(parent);
-	addClass(text, "text");
-	addTextNode(text, textparam);
-	return text;
-}
+        const topleft = addCell(topRow);
+        addClass(topleft, "fitContent");
+        addResizeContainer(topleft, "nwse-resize", true, true, modal, "tl");
 
-function addTextNode(parent, text) {
-	const textNode = document.createTextNode(text);
-	parent.appendChild(textNode);
-	return textNode;
-}
+        const topCenter = addCell(topRow);
+        addClass(topCenter, "fitContent");
+        addResizeContainer(topCenter, "ns-resize", true, false, modal, "t");
 
-function addAttributeValue(object, attribute, value) {
-	if (object.getAttribute(attribute)) {
-		object.setAttribute(attribute, object.getAttribute(attribute) + value);
-	} else {
-		object.setAttribute(attribute, value);
-	}
-}
+        const topRight = addCell(topRow);
+        addClass(topRight, "fitContent");
+        addResizeContainer(topRight, "nesw-resize", true, true, modal, "tr");
 
-function addInputField(parent) {
-	const input = document.createElement("input");
-	input.type = "text";
-	parent.appendChild(input);
-	return input;
-}
+		//Center row
+        const centerRow = addRow(modalTable);
+        const centerleft = addCell(centerRow);
+        addClass(centerleft, "fitContent");
+        const centerLeftResizeContainer = addResizeContainer(centerleft, "ew-resize", false, true, modal, "l");
+        addResizeCenterSidesStyling(centerLeftResizeContainer);
 
-function addTextArea(parent, columns = 50, rows = 4) {
-	const textArea = document.createElement("textarea");
-	textArea.rows = rows;
-	textArea.cols = columns;
-	parent.appendChild(textArea);
-	return textArea;
-}
+        const centerCenter = addCell(centerRow);
 
-function createLink(text) {
-	const link = document.createElement("a");
-	addTextNode(link, text);
-	return link;
-}
+        const centerRight = addCell(centerRow);
+        addClass(centerRight, "fitContent");
+        const centerRightResizeContainer = addResizeContainer(centerRight, "ew-resize", false, true, modal, "r");
+        addResizeCenterSidesStyling(centerRightResizeContainer);
 
-function addLink(parent, text) {
-	const link = createLink(text);
-	parent.appendChild(link);
-	return link;
-}
+		//Bottom row
+        const bottomRow = addRow(modalTable);
 
-function createClickableLink(text, onClick) {
-	const link = createLink(text);
-	link.addEventListener("click", onClick);
-	return link;
-}
+        const bottomleft = addCell(bottomRow);
+        addClass(bottomleft, "fitContent");
+        addResizeContainer(bottomleft, "nesw-resize", true, true, modal, "bl");
 
-function addClickableLink(parent, text, onClick) {
-	const link = createClickableLink(text, onClick);
-	parent.appendChild(link);
-	return link;
-}
+        const bottomCenter = addCell(bottomRow);
+        addClass(bottomCenter, "fitContent");
+        addResizeContainer(bottomCenter, "ns-resize", true, false, modal, "b");
 
-function addLabel(parent, labelParam) {
-	const label = addContainer(parent);
-	addClass(label, "label");
-	label.textNode = addTextNode(label, labelParam);
-	return label;
-}
+        const bottomRight = addCell(bottomRow);
+        addClass(bottomRight, "fitContent");
+        addResizeContainer(bottomRight, "nwse-resize", true, true, modal, "br");
 
-function addButton(parent, text) {
-	const button = document.createElement("button");
-	addTextNode(button, text);
-	addAttributeValue(button, "type", "button");
-	parent.appendChild(button);
-	return button;
-}
+        const contentTable = addTable(centerCenter);
 
-function addClickableButton(parent, text, onClick) {
-	const button = addButton(parent, text);
-	button.addEventListener("click", onClick);
-}
+        modal.headerRow = addRow(contentTable);
+        const headerCell = addCell(modal.headerRow);
 
-function addResizableModal(parent, title) {
-	const modal = addContainer(parent);
-	mxExplorer.modalArray.push(modal);
-	addClasses(modal, ["table", "modal"]);
-	addClass(modal, "mxExplorerModal");
+        modal.headerContainer = addFlex(headerCell);
+        addClass(modal.headerContainer, "modalHeader");
 
-	//This table is used to create the resize divs around the center content container
-	const modalTable = addTable(modal);
+        const titleLabel = addLabel(modal.headerContainer, title);
+        addAttributeValue(titleLabel, "class", " modalTitle");
 
-	//Top row
-	const topRow = addRow(modalTable);
+        modal.navigationPanel = addContainer(modal.headerContainer);
+        addClass(modal.navigationPanel, "navigationPanel");
 
-	const topleft = addCell(topRow);
-	addClass(topleft, "fitContent");
-	addResizeContainer(topleft, "nwse-resize", true, true, modal, "tl");
+        const contentRow = addRow(contentTable);
+        modal.contentRow = contentRow;
+        modal.contentCell = addCell(contentRow);
+        modal.contentCell.modal = modal;
+        addClass(modal.contentCell, "modalContent");
+        return modal;
+    }
 
-	const topCenter = addCell(topRow);
-	addClass(topCenter, "fitContent");
-	addResizeContainer(topCenter, "ns-resize", true, false, modal, "t");
+    function calculateModalLocation(event, modal, usePreviousDrag) {
+        const startX = usePreviousDrag ? modal.previousDragX : modal.dragStartX;
+        const startY = usePreviousDrag ? modal.previousDragY : modal.dragStartY;
 
-	const topRight = addCell(topRow);
-	addClass(topRight, "fitContent");
-	addResizeContainer(topRight, "nesw-resize", true, true, modal, "tr");
+        if (startX != event.x || startY != event.y) {
+            const maxX = window.innerWidth - modal.offsetWidth;
+            modal.newX = modal.x + (event.x - startX);
+            modal.newX = modal.newX > 0 ? modal.newX : 0;
+            modal.newX = modal.newX < maxX ? modal.newX : maxX;
 
-	//Center row
-	const centerRow = addRow(modalTable);
-	const centerleft = addCell(centerRow);
-	addClass(centerleft, "fitContent");
-	const centerLeftResizeContainer = addResizeContainer(centerleft, "ew-resize", false, true, modal, "l");
-	addResizeCenterSidesStyling(centerLeftResizeContainer);
+            modal.style.left = modal.newX + "px";
 
-	const centerCenter = addCell(centerRow);
+            const maxY = window.innerHeight - modal.offsetHeight;
+            modal.newY = modal.y + (event.y - startY);
+            modal.newY = modal.newY > 0 ? modal.newY : 0;
+            modal.newY = modal.newY < maxY ? modal.newY : maxY;
 
-	const centerRight = addCell(centerRow);
-	addClass(centerRight, "fitContent");
-	const centerRightResizeContainer = addResizeContainer(centerRight, "ew-resize", false, true, modal, "r");
-	addResizeCenterSidesStyling(centerRightResizeContainer);
+            modal.style.top = modal.newY + "px";
 
-	//Bottom row
-	const bottomRow = addRow(modalTable);
+            modal.x = modal.newX;
+            modal.y = modal.newY;
+        }
+    }
 
-	const bottomleft = addCell(bottomRow);
-	addClass(bottomleft, "fitContent");
-	addResizeContainer(bottomleft, "nesw-resize", true, true, modal, "bl");
+    function addModalClosableDraggable(parent, title, defaultCloseBehaviour = true) {
+        const modal = addResizableModal(parent, title);
+        modal.minified = false;
 
-	const bottomCenter = addCell(bottomRow);
-	addClass(bottomCenter, "fitContent");
-	addResizeContainer(bottomCenter, "ns-resize", true, false, modal, "b");
+        bringToFront(modal);
+        addAttributeValue(modal.headerRow, "draggable", "true");
 
-	const bottomRight = addCell(bottomRow);
-	addClass(bottomRight, "fitContent");
-	addResizeContainer(bottomRight, "nwse-resize", true, true, modal, "br");
+        modal.headerRow.addEventListener("mousedown", (event) => {
+            modal.dragStartX = event.x;
+            modal.dragStartY = event.y;
+            modal.previousDragX = event.x;
+            modal.previousDragY = event.y;
+        });
 
-	const contentTable = addTable(centerCenter);
+        modal.headerRow.addEventListener("dragend", (event) => {
+			// if (!modal.moveOnDrag) {
+            calculateModalLocation(event, modal, false);
+            bringToFront(modal);
+			// }
+        });
 
-	modal.headerRow = addRow(contentTable);
-	const headerCell = addCell(modal.headerRow);
+        const minifyButton = addButton(modal.navigationPanel, "⎯");
+        modal.minifyButton = minifyButton;
+        addClass(minifyButton, "navigationButton");
 
-	modal.headerContainer = addFlex(headerCell);
-	addClass(modal.headerContainer, "modalHeader");
-
-	const titleLabel = addLabel(modal.headerContainer, title);
-	addAttributeValue(titleLabel, "class", " modalTitle");
-
-	modal.navigationPanel = addContainer(modal.headerContainer);
-	addClass(modal.navigationPanel, "navigationPanel");
-
-	const contentRow = addRow(contentTable);
-	modal.contentRow = contentRow;
-	modal.contentCell = addCell(contentRow);
-	modal.contentCell.modal = modal;
-	addClass(modal.contentCell, "modalContent");
-	return modal;
-}
-
-function calculateModalLocation(event, modal, usePreviousDrag) {
-	const startX = usePreviousDrag ? modal.previousDragX : modal.dragStartX;
-	const startY = usePreviousDrag ? modal.previousDragY : modal.dragStartY;
-
-	if (startX != event.x || startY != event.y) {
-		const maxX = window.innerWidth - modal.offsetWidth;
-		modal.newX = modal.x + (event.x - startX);
-		modal.newX = modal.newX > 0 ? modal.newX : 0;
-		modal.newX = modal.newX < maxX ? modal.newX : maxX;
-
-		modal.style.left = modal.newX + "px";
-
-		const maxY = window.innerHeight - modal.offsetHeight;
-		modal.newY = modal.y + (event.y - startY);
-		modal.newY = modal.newY > 0 ? modal.newY : 0;
-		modal.newY = modal.newY < maxY ? modal.newY : maxY;
-
-		modal.style.top = modal.newY + "px";
-
-		modal.x = modal.newX;
-		modal.y = modal.newY;
-	}
-}
-
-function addModalClosableDraggable(parent, title, defaultCloseBehaviour = true) {
-	const modal = addResizableModal(parent, title);
-	modal.minified = false;
-
-	bringToFront(modal);
-	addAttributeValue(modal.headerRow, "draggable", "true");
-
-	modal.headerRow.addEventListener("mousedown", (event) => {
-		modal.dragStartX = event.x;
-		modal.dragStartY = event.y;
-		modal.previousDragX = event.x;
-		modal.previousDragY = event.y;
-	});
-
-	modal.headerRow.addEventListener("dragend", (event) => {
-		// if (!modal.moveOnDrag) {
-			calculateModalLocation(event, modal, false);
-			bringToFront(modal);
-		// }
-	});
-
-	const minifyButton = addButton(modal.navigationPanel, "⎯");
-	modal.minifyButton = minifyButton;
-	addClass(minifyButton, "navigationButton");
-
-	minifyButton.addEventListener("click", (event) => {
-		if (modal.minified) {
-			removeHiddenClass(modal.contentRow);
-			modal.minified = false;
-			modal.style.height = modal.oldHeight;
-		} else {
-			addHiddenClass(modal.contentRow);
-			modal.minified = true;
-			modal.oldHeight = modal.style.height;
-			modal.style.height = "55px";
-		}
-	});
+        minifyButton.addEventListener("click", (event) => {
+            if (modal.minified) {
+                removeHiddenClass(modal.contentRow);
+                modal.minified = false;
+                modal.style.height = modal.oldHeight;
+            } else {
+                addHiddenClass(modal.contentRow);
+                modal.minified = true;
+                modal.oldHeight = modal.style.height;
+                modal.style.height = "55px";
+            }
+        });
 
 
-	const closeButton = addButton(modal.navigationPanel, "X");
-	modal.closeButton = closeButton;
-	addClass(closeButton, "navigationButton");
+        const closeButton = addButton(modal.navigationPanel, "X");
+        modal.closeButton = closeButton;
+        addClass(closeButton, "navigationButton");
 
-	if (defaultCloseBehaviour) {
-		closeButton.addEventListener("click", (event) => {
-			event.stopPropagation();
-			mxExplorer.body.removeChild(modal);
-			delete mxExplorer.modalArray[mxExplorer.modalArray.indexOf(modal)];
-			if (modal === mxExplorer.browseEntitiesModel) {
-				mxExplorer.browseEntitiesModel = null;
-			} else if (modal === mxExplorer.browseCacheModel) {
-				mxExplorer.browseCacheModel = null;
-			}
-		});
-	}
+        if (defaultCloseBehaviour) {
+            closeButton.addEventListener("click", (event) => {
+                event.stopPropagation();
+                mxExplorer.body.removeChild(modal);
+                delete mxExplorer.modalArray[mxExplorer.modalArray.indexOf(modal)];
+                if (modal === mxExplorer.browseEntitiesModel) {
+                    mxExplorer.browseEntitiesModel = null;
+                } else if (modal === mxExplorer.browseCacheModel) {
+                    mxExplorer.browseCacheModel = null;
+                }
+            });
+        }
 
-	modal.addEventListener("click", () => {
-		bringToFront(modal);
-	});
+        modal.addEventListener("click", () => {
+            bringToFront(modal);
+        });
 
-	return modal;
-}
+        return modal;
+    }
 
-function bringToFront(object) {
-	object.style.zIndex = ++mxExplorer.zIndex;
-}
+    function bringToFront(object) {
+        object.style.zIndex = ++mxExplorer.zIndex;
+    }
 
-function datagridSearch(dataGrid) {
-	dataGrid.xpath = dataGrid.xpathField.value;
+    function datagridSearch(dataGrid) {
+ 	dataGrid.xpath = dataGrid.xpathField.value;
 	dataGrid.isFirstPage = true;
 	dataGrid.pageOffset = 0;
 	dataGrid.offset = 0;
 	updateDataGrid(dataGrid)
-}
+    }
 
-function getDefaultMxDataGetErrorHandler() {
-	return (error) => {
-		window.alert("Could not execute query, error: " + error.status);
-	};
-}
+    function getDefaultMxDataGetErrorHandler() {
+        return (error) => {
+            window.alert("Could not execute query, error: " + error.status);
+        };
+    }
 
 function addDataGrid(parent, parentAttributes, entity, hiddenXpathValue, embedded, modal) {
 	const dataGrid = addTable(parent);
@@ -1167,7 +1175,7 @@ function updateDataGrid(dataGrid) {
 			updatePaging(dataGrid);
 		}, this.attributes,
 		getDefaultMxDataGetErrorHandler(), dataGrid.offset, dataGrid.pageSize, dataGrid.sortSpec);
-}
+}        
 
 function addDataGridHeader(dataGrid) {
 	const topRow = addRow(dataGrid);
@@ -1192,17 +1200,17 @@ function addDataGridHeader(dataGrid) {
 		}
 	});
 
-	const topCenterColumnButtonPanel = addCell(topCenterColumnTableRow);
-	addClass(topCenterColumnButtonPanel, "valign-t");
+        const topCenterColumnButtonPanel = addCell(topCenterColumnTableRow);
+        addClass(topCenterColumnButtonPanel, "valign-t");
 
 	addClickableButton(topCenterColumnButtonPanel, "Clear", () => {xpathField.value = ""});
 
-	addClass(topCenterColumnButtonPanel, "button-panel");
+        addClass(topCenterColumnButtonPanel, "button-panel");
 
 	addClickableButton(topCenterColumnButtonPanel, "[]", () => {xpathField.value = "[]"});
 
 	addClickableButton(topCenterColumnButtonPanel, "OR", () => {addTextToInputField(xpathField, " or ")});
-
+	
 	addClickableButton(topCenterColumnButtonPanel, "AND", () => {addTextToInputField(xpathField, " and ")});
 
 	addClickableButton(topCenterColumnButtonPanel, "(", () => {addTextToInputField(xpathField, "(")});
@@ -1211,57 +1219,57 @@ function addDataGridHeader(dataGrid) {
 
 	addClickableButton(topCenterColumnButtonPanel, "empty", () => {addTextToInputField(xpathField, "empty")});
 
-	addClickableButton(topCenterColumnButtonPanel, "Search", () => {
+        addClickableButton(topCenterColumnButtonPanel, "Search", () => {
 		datagridSearch(dataGrid)
-	});
-
-	const topRightContainer = addContainer(topCellContainer);
+        });
+		
+        const topRightContainer = addContainer(topCellContainer);
 	dataGrid.topRightContainer = topRightContainer;
-	addAttributeValue(topRightContainer, "style", "text-align: right");
+        addAttributeValue(topRightContainer, "style", "text-align: right");
 
 	const sortingRow = addRow(dataGrid);
 	dataGrid.sortingRow = sortingRow;
-	const sortingCell = addCell(sortingRow);
-	const sortingContainer = addFlex(sortingCell);
+        const sortingCell = addCell(sortingRow);
+        const sortingContainer = addFlex(sortingCell);
 	dataGrid.sortingContainer = sortingContainer;
 
-	addText(sortingContainer, "No Sorting");
+            addText(sortingContainer, "No Sorting");
 
 	dataGrid.addEventListener("sort", (event) => {
-		event.stopPropagation();
+            event.stopPropagation();
 
-		let sortFound = false;
+            let sortFound = false;
 		if (dataGrid.sortSpec) {
 			dataGrid.sortSpec.every((sort1) => {
-				if (sort1[0] === event.attribute) {
-					if (sort1[1] === "asc") {
-						sort1[1] = "desc";
-					} else {
-						sort1[1] = "asc";
-					}
-					sortFound = true;
-					return false;
-				}
-				return true;
-			});
-		}
-		if (!sortFound) {
+                    if (sort1[0] === event.attribute) {
+                        if (sort1[1] === "asc") {
+                            sort1[1] = "desc";
+                        } else {
+                            sort1[1] = "asc";
+                        }
+                        sortFound = true;
+                        return false;
+                    }
+                    return true;
+                });
+            }
+            if (!sortFound) {
 			dataGrid.sortSpec[dataGrid.sortSpec.length] = [event.attribute, "asc"];
-		}
+            }
 		refreshSortingContainer(dataGrid);
 		updateDataGrid(dataGrid);
-	});
+        });
 
 	dataGrid.addEventListener("removeSort", (event) => {
-		let count = 0;
+            let count = 0;
 		dataGrid.sortSpec.every((sort2) => {
-			if (sort2[0] === event.attribute) {
+                if (sort2[0] === event.attribute) {
 				dataGrid.sortSpec.splice(count, 1);
-				return false;
-			}
-			count++;
-			return true;
-		});
+                    return false;
+                }
+                count++;
+                return true;
+            });
 		refreshSortingContainer(dataGrid);
 		updateDataGrid(dataGrid);
 	});
@@ -1274,7 +1282,7 @@ function getAttributeType(entityObject, attribute) {
 function addDataGridContent(dataGrid) {
 	const dataRow = addRow(dataGrid);
 	dataGrid.dataRow = dataRow;
-	const dataCell = addCell(dataRow);
+        const dataCell = addCell(dataRow);
 	const dataGridContent = addContainer(dataCell);
 	addClass(dataGridContent, "dataGridContent");
 	dataGrid.dataGridContent = dataGridContent;
@@ -1282,60 +1290,60 @@ function addDataGridContent(dataGrid) {
 	dataGridContent.dataTable = dataTable;
 	if (!dataGrid.embedded) {
 		addClass(dataTable, "dataTable");
-	}
-	dataTable.style.maxWidth = mxExplorer.dataGridContentMaxInitialWidth + "px";
-	dataTable.style.maxHeight = mxExplorer.dataGridContentMaxInitialHeight + "px";
+            }
+            dataTable.style.maxWidth = mxExplorer.dataGridContentMaxInitialWidth + "px";
+            dataTable.style.maxHeight = mxExplorer.dataGridContentMaxInitialHeight + "px";
 
-	const headerRow = addRow(dataTable);
-	const guidCell = addCell(headerRow);
+            const headerRow = addRow(dataTable);
+            const guidCell = addCell(headerRow);
 
-	guidCell.addEventListener("click", () => {
-		addTextToInputField(xpath, "[id = ]");
-	});
+            guidCell.addEventListener("click", () => {
+                addTextToInputField(xpath, "[id = ]");
+            });
 
-	addLabel(guidCell, "GUID");
+            addLabel(guidCell, "GUID");
 
 	dataGrid.headerCellMap = new Map();
-
+			
 	const entityObject = mxExplorer.entities[dataGrid.entity];
 	dataGrid.parentAttributes.forEach(attributeObject => {
 		const headerCell = addCell(headerRow);
 		dataGrid.headerCellMap.set(attributeObject, headerCell);
 		const headerCellContainer = addFlex(headerCell);
 		const headerCellLabel = addLabel(headerCellContainer, attributeObject);
-		addClass(headerCellLabel, "headerColumnLabel");
+    	addClass(headerCellLabel, "headerColumnLabel");
 		if (attributeObject.type !== "ObjectReference") {
-			const exportButton = addMiniButton(headerCellContainer, "»");
+            const exportButton = addMiniButton(headerCellContainer, "»");
 			exportButton.attribute = attributeObject;
 			exportButton.xpath = dataGrid.xpath;
 			exportButton.sortSpec = dataGrid.sortSpec;
 			exportButton.entity = dataGrid.entity;
-			const tooltip = "Use this button to export ALL entries for this column, empty columns will not be exported";
-			exportButton.title = tooltip;
-			exportButton.alt = tooltip;
-			exportButton.addEventListener("click" , function(event) {
-				event.stopPropagation();
-				exportColumn("//" + this.entity + this.xpath.value, this.attribute, this.sortSpec);
-			});
+                    const tooltip = "Use this button to export ALL entries for this column, empty columns will not be exported";
+                    exportButton.title = tooltip;
+                    exportButton.alt = tooltip;
+                    exportButton.addEventListener("click" , function(event) {
+                        event.stopPropagation();
+                        exportColumn("//" + this.entity + this.xpath.value, this.attribute, this.sortSpec);
+                    });
 
-			const sortButton = addButton(headerCellContainer,"↨");
-			addClass(sortButton, "sortButton");
-			sortButton.addEventListener("click", (event) => {
-				event.stopPropagation();
-				const sortEvent = new Event("sort", {bubbles: true});
-				sortEvent.attribute = attributeObject;
-				sortButton.dispatchEvent(sortEvent);
-			});
-		}
-
-		headerCell.addEventListener("click", () => {
+                    const sortButton = addButton(headerCellContainer,"↨");
+                    addClass(sortButton, "sortButton");
+                    sortButton.addEventListener("click", (event) => {
+                        event.stopPropagation();
+                        const sortEvent = new Event("sort", {bubbles: true});
+						sortEvent.attribute = attributeObject;
+                        sortButton.dispatchEvent(sortEvent);
+                    });
+                }
+				
+                headerCell.addEventListener("click", () => {
 			if (entityObject.getAttributeType(attributeObject) === "ObjectReference") {
 				addTextToInputField(dataGrid.xpathField, "[" + attributeObject + "/" + entityObject.getSelectorEntity(attributeObject) + "/ ]");
-			} else {
+                    } else {
 				addTextToInputField(dataGrid.xpathField, "[" + attributeObject + " = ]");
-			}
-		});
-	});
+                    }
+                });
+            });
 
 	addColumnPickerCell(dataGrid, headerRow);
 }
@@ -1412,56 +1420,56 @@ function handlePageNavigationClick(dataGrid, newPageOffset) {
 		dataGrid.offset = dataGrid.pageOffset * dataGrid.pageSize;
 		updateDataGrid(dataGrid);
 	}
-}
+    }
 
-function mxDataGet(xpath, callback, attributes, error, offset, amount, sort) {
-	const parameters = {
+    function mxDataGet(xpath, callback, attributes, error, offset, amount, sort) {
+        const parameters = {
 		xpath: 		xpath,
 		callback:	callback,
 		error:		error,
 		count:		true
-	};
-	if (!attributes || !offset || !amount || !sort) {
-		const filter = {};
-		if (attributes) {
+        };
+        if (!attributes || !offset || !amount || !sort) {
+            const filter = {};
+            if (attributes) {
 			filter.attributes = attributes;
-		}
-		if (offset) {
+            }
+            if (offset) {
 			filter.offset = offset;
-		}
-		if (amount) {
+            }
+            if (amount) {
 			filter.amount = amount;
-		}
-		if (sort) {
+            }
+            if (sort) {
 			filter.sort = sort;
-		}
+            }
 		parameters.filter = filter;
-	}
+        }
 	mx.data.get(parameters);
-}
+    }
 
-function mxDataGetEntry(guid, callback, error) {
-	const parameters = {
+    function mxDataGetEntry(guid, callback, error) {
+        const parameters = {
 		guid: 		guid,
 		callback:	callback,
 		error:		error
-	};
+        };
 	mx.data.get(parameters);
-}
+    }
 
-function getValue(entry, attribute, entityObject) {
-	const value = entry.get(attribute);
-	if (entry.getAttributeType(attribute) === "DateTime" && value !== "") {
-		const dateTimeFormat = new Intl.DateTimeFormat("en-us", {
-			year: "numeric",
-			month: "numeric",
-			day: "numeric",
-			hour: "numeric",
-			minute: "numeric",
-			second: "numeric",
-			hour12: false
-		});
-		const parts = dateTimeFormat.formatToParts(new Date(value));
+    function getValue(entry, attribute, entityObject) {
+        const value = entry.get(attribute);
+        if (entry.getAttributeType(attribute) === "DateTime" && value !== "") {
+            const dateTimeFormat = new Intl.DateTimeFormat("en-us", {
+                year: "numeric",
+                month: "numeric",
+                day: "numeric",
+                hour: "numeric",
+                minute: "numeric",
+                second: "numeric",
+                hour12: false
+            });
+            const parts = dateTimeFormat.formatToParts(new Date(value));
 
 		return formattedDate = getDatePart(parts, "year") + "-"
 			+ getDatePart(parts, "month") + "-"
@@ -1469,142 +1477,143 @@ function getValue(entry, attribute, entityObject) {
 			+ getDatePart(parts, "hour") + ":"
 			+ getDatePart(parts, "minute") + ":"
 			+ getDatePart(parts, "second");
-	} else {
+        } else {
 		return value;
-	}
-}
+        }
+    }
 
-function getDatePart(parts, type) {
+    function getDatePart(parts, type) {
 	let value = '';
 	parts.forEach((part) => {
-		if (part.type === type) {
-			value = parseInt(`${part.value}`);
-			if (part.type === "hour" && value === 24) {
+            if (part.type === type) {
+                value = parseInt(`${part.value}`);
+                if (part.type === "hour" && value === 24) {
 				value = "00";
-			} else if ((part.type === "second" || part.type === "minute" || part.type === "hour" || part.type === "day" || part.type === "month") && value < 10) {
+                } else if ((part.type === "second" || part.type === "minute" || part.type === "hour" || part.type === "day" || part.type === "month") && value < 10) {
 				value = "0" + value;
-			}
-		}
-	});
+                }
+            }
+        });
 	return value;
-}
+    }
 
-function addDataPage(entry, parentAttributes) {
-	const entityName = entry.getEntity();
-	const dataModal = addModalClosableDraggable(mxExplorer.body, entityName + " - GUID: " + entry.getGuid());
-	const contentContainer = addContentContainer(dataModal.contentCell);
-	const contentTable = addTable(contentContainer);
+    function addDataPage(entry, parentAttributes) {
+        const entityName = entry.getEntity();
+        const dataModal = addModalClosableDraggable(mxExplorer.body, entityName + " - GUID: " + entry.getGuid());
+        const contentContainer = addContentContainer(dataModal.contentCell);
+        const contentTable = addTable(contentContainer);
 
-	const attributesRow = addRow(contentTable);
-	const attributesCell = addCell(attributesRow);
-	const attributeContentTable = addTable(attributesCell);
+        const attributesRow = addRow(contentTable);
+        const attributesCell = addCell(attributesRow);
+        const attributeContentTable = addTable(attributesCell);
 
-	const associationsRow = addRow(contentTable);
-	const associationsCell = addCell(associationsRow);
-	const associationsContentTable = addTable(associationsCell);
+        const associationsRow = addRow(contentTable);
+        const associationsCell = addCell(associationsRow);
+        const associationsContentTable = addTable(associationsCell);
 
-	let container;
+        let container;
 	const entityObject = mxExplorer.entities[entityName];
 
-	container = addLabelValue(attributeContentTable, "GUID", entry.getGuid());
+        container = addLabelValue(attributeContentTable, "GUID", entry.getGuid());
 
-	let attributeCounter = 2;
+        let attributeCounter = 2;
 	console.dir(parentAttributes);
-	parentAttributes.sort();
-	parentAttributes.forEach(attribute => {
+        parentAttributes.sort();
+        parentAttributes.forEach(attribute => {
 
 		// let container;
 		if (!isObjectReferenceSet(attribute)) {
-			container = addLabelAttributeToContainer(attributeContentTable, attribute, getValue(entry, attribute, entityObject), attribute, entityObject);
+                container = addLabelAttributeToContainer(attributeContentTable, attribute, getValue(entry, attribute, entityObject), attribute, entityObject);
 			if (attributeCounter %2 === 0) {
 				addClass(container, "evenRow");
-			}
-		} else {
+                }
+            } else {
 			addAssociationPanel(attribute, getSelectorEntity(attribute), associationsContentTable, attributeCounter % 2 === 0, dataModal, entry);
-		}
+            }
 		attributeCounter++;
-	});
+        });
 
-	if (mxExplorer.associations.get(entityName)) {
-		const associationsForEntity = mxExplorer.associations.get(entityName);
-		const it = associationsForEntity.keys();
-		let result = it.next();
-		while (!result.done) {
-			let key = result.value;
+        if (mxExplorer.associations.get(entityName)) {
+            const associationsForEntity = mxExplorer.associations.get(entityName);
+            const it = associationsForEntity.keys();
+            let result = it.next();
+            while (!result.done) {
+                let key = result.value;
 			//If this is a one to one relation, it is already shown with the attributes, so don't create a panel for it
 			if (!getReferenceAttributes(entityObject).includes(key)) {
-				const associatedEntity = associationsForEntity.get(key);
-				addAssociationPanel(key, associatedEntity, associationsContentTable, attributeCounter % 2 === 0, dataModal, entry);
+                    const associatedEntity = associationsForEntity.get(key);
+                    addAssociationPanel(key, associatedEntity, associationsContentTable, attributeCounter % 2 === 0, dataModal, entry);
 				attributeCounter++;
-			}
+                }
 			result = it.next();
-		}
-	}
+            }
+        }
 	initModal(dataModal);
-}
+    }
 
-function addAssociationPanel(association, entity, table, evenRow, modal, entry) {
-	const npEntity = mxExplorer.npEntityArray.includes(entity);
-	const collapsibleRow = addRow(table);
-	const collapsibleCell = addCell(collapsibleRow);
-	container = addContainer(collapsibleCell);
+    function addAssociationPanel(association, entity, table, evenRow, modal, entry) {
+        const npEntity = mxExplorer.npEntityArray.includes(entity);
+        const collapsibleRow = addRow(table);
+        const collapsibleCell = addCell(collapsibleRow);
+        container = addContainer(collapsibleCell);
 	addCollapsiblePanel(container, (headerCell) => {
-		const titleLabel = addLabel(headerCell, association + " (Open to browse)");
+            const titleLabel = addLabel(headerCell, association + " (Open to browse)");
 		addAttributeValue(titleLabel, "class", " collapsibleTitle");
 	}, (contentContainer) => {
-		const container = addContainer(contentContainer);
+            const container = addContainer(contentContainer);
 		container.style.width = (modal.offsetWidth - 25) + "px";
-		if (npEntity) {
-			const table = addTable(container);
-			let hasNpObjects = false;
-			window.mx.data.getObjectsStatistics().forEach((item, index) => {
-				const entityObject = item.object;
-				const entityObjectGuid = entityObject.getGuid();
-				if (entityObject.getEntity() === entity) {
+            if (npEntity) {
+                const table = addTable(container);
+                let hasNpObjects = false;
+                window.mx.data.getObjectsStatistics().forEach((item, index) => {
+                    const entityObject = item.object;
+                    const entityObjectGuid = entityObject.getGuid();
+                    if (entityObject.getEntity() === entity) {
 					if (getValue(entityObject, key, mxExplorer.entities[entityObject.getEntity()]) === entry.getGuid()) {
-						hasNpObjects = true;
-						const row = addRow(table);
-						const cell = addCell(row);
-						const link = addLink(cell, entityObjectGuid);
+                            hasNpObjects = true;
+                            const row = addRow(table);
+                            const cell = addCell(row);
+                            const link = addLink(cell, entityObjectGuid);
 						link.addEventListener("click", (event) => {
-							let objectStillInCache = false;
-							window.mx.data.getObjectsStatistics().every((item, index) => {
-								if (item.object.getGuid() === entityObjectGuid) {
-									objectStillInCache = true;
+                                let objectStillInCache = false;
+                                window.mx.data.getObjectsStatistics().every((item, index) => {
+                                    if (item.object.getGuid() === entityObjectGuid) {
+                                        objectStillInCache = true;
 									return false;
-								}
+                                    }
 								return true;
-							});
-							if (objectStillInCache) {
-								addDataPage(entityObject, entityObject.getAttributes());
+                                });
+                                if (objectStillInCache) {
+                                    addDataPage(entityObject, entityObject.getAttributes());
 								event.stopPropagation();
 							}	else {
 								window.alert("Item " + entityObjectGuid + " is no longer present in the cache, please refresh");
-							}
-						})
-					}
-				}
-			});
-			if (!hasNpObjects) {
-				const row = addRow(table);
-				const cell = addCell(row);
-				addLabel(cell, "No related np entities found");
-			}
-		} else {
+                                }
+                            })
+                        }
+                    }
+                });
+                if (!hasNpObjects) {
+					const row = addRow(table);
+					const cell = addCell(row);
+					addLabel(cell, "No related np entities found");
+                }
+            } else {
                 addClass(container, "dataGridContainer");
-                addDataGrid(container, mxExplorer.entities[entity].getAttributes(), entity, mxExplorer.amount, 0, "", [], "[" + association + "=" + entry.getGuid() + "]", true, modal)
+				console.log("[" + association + "=" + entry.getGuid() + "]");
+				console.dir(entry);
+				addDataGrid(container, getAttributes(entity), "[" + association + "=" + entry.getGuid() + "]", true);
             }
-	});
+        });
 	//Dummy cell
-	addCell(collapsibleRow);
-	if (evenRow) {
-		addClass(collapsibleRow, "evenRow");
-	}
-}
+        addCell(collapsibleRow);
+        if (evenRow) {
+			addClass(collapsibleRow, "evenRow");	
+        }
+    }
 
 function addPaging(dataGrid) {
 	dataGrid.pagingLabel = addLabel(dataGrid.pagingContainer, emptyPagingText);
-	dataGrid.pagingLabel.textNode = dataGrid.pagingLabel.firstChild; // Store text node reference for updatePaging
 }
 
 function updatePaging(dataGrid) {
@@ -1613,306 +1622,306 @@ function updatePaging(dataGrid) {
 		const maxLength = dataGrid.offset + dataGrid.pageSize;
 		const to = dataGrid.resultSize < maxLength ? dataGrid.offset + dataGrid.resultSize : maxLength;
 		label.textNode.nodeValue = dataGrid.offset + 1 + " to " + to + " of " + dataGrid.totalResultSize;
-	} else {
+        } else {
 		label.textNode.nodeValue = emptyPagingText;
-	}
-}
+        }
+    }
 
 function addPageSize(parent, onChange) {
-	const select = document.createElement("select");
-	addOption(select, "10");
-	addOption(select, "25");
-	addOption(select, "50");
-	parent.appendChild(select);
-	select.addEventListener("change", onChange);
+        const select = document.createElement("select");
+        addOption(select, "10");
+        addOption(select, "25");
+        addOption(select, "50");
+        parent.appendChild(select);
+        select.addEventListener("change", onChange);
 	return select;
-}
+    }
 
-function addOption(parent, value) {
-	const option = document.createElement("option");
-	addTextNode(option, value);
+    function addOption(parent, value) {
+        const option = document.createElement("option");
+        addTextNode(option, value);
 	parent.appendChild(option);
-}
+    }
 
-function addClasses(object, classes) {
+    function addClasses(object, classes) {
 	classes.forEach((clazz) => {
-		const classList = object.classList;
-		if (!classList.contains(clazz)) {
+            const classList = object.classList;
+            if (!classList.contains(clazz)) {
 			classList.add(clazz);
-		}
-	})
-}
+            }
+        })
+    }
 
-function addClass(object, clazz) {
-	const classList = object.classList;
-	if (!classList.contains(clazz)) {
+    function addClass(object, clazz) {
+        const classList = object.classList;
+        if (!classList.contains(clazz)) {
 		classList.add(clazz);
-	}
-}
+        }
+    }
 
-function removeClass(object, clazz) {
-	const classList = object.classList;
-	if (classList.contains(clazz)) {
+    function removeClass(object, clazz) {
+        const classList = object.classList;
+        if (classList.contains(clazz)) {
 		classList.remove(clazz);
-	}
-}
+        }
+    }
 
-function addHiddenClass(object) {
+    function addHiddenClass(object) {
 	addClass(object, "hidden");
-}
+    }
 
-function removeHiddenClass(object) {
+    function removeHiddenClass(object) {
 	removeClass(object, "hidden");
-}
+    }
 
-function addSortingAttribute(parent, attribute, sortOrder, count) {
-	const container = addFlex(parent);
-	container.attribute = attribute;
-	container.sort = sortOrder;
+    function addSortingAttribute(parent, attribute, sortOrder, count) {
+        const container = addFlex(parent);
+        container.attribute = attribute;
+        container.sort = sortOrder;
 	container.addEventListener("dragstart", (event) => {
 		event.dataTransfer.setData("count", count);
-	});
+        });
 
-	addClass(container, "sortingContainer");
-	addAttributeValue(container, "draggable", "true");
+        addClass(container, "sortingContainer");
+        addAttributeValue(container, "draggable", "true");
 
 	const removeButton  = addButton(container, "X");
-	removeButton.addEventListener("click", () => {
+        removeButton.addEventListener("click", () => {
 		const event = new Event("removeSort", {bubbles: true});
-		event.attribute = attribute;
+            event.attribute = attribute;
 		container.dispatchEvent(event);
-	});
+        });
 
-	const text = addText(container, attribute);
-	addClass(text, "sortingText");
+        const text = addText(container, attribute);
+        addClass(text, "sortingText");
 
-	const descButton = addButton(container, "↓");
-	addClass(descButton, "sortingButton");
+        const descButton = addButton(container, "↓");
+        addClass(descButton, "sortingButton");
 
-	const ascButton = addButton(container, "↑");
-	addClass(ascButton, "sortingButton");
+        const ascButton = addButton(container, "↑");
+        addClass(ascButton, "sortingButton");
 
-	if (sortOrder === "desc") {
+        if (sortOrder === "desc") {
 		addHiddenClass(ascButton);
-	} else {
+        } else {
 		addHiddenClass(descButton);
-	}
+        }
 
-	descButton.addEventListener("click", () => {
-		addHiddenClass(descButton);
-		removeHiddenClass(ascButton);
-		container.sort = "asc";
+        descButton.addEventListener("click", () => {
+            addHiddenClass(descButton);
+            removeHiddenClass(ascButton);
+            container.sort = "asc";
 		const event = new Event("sort", {bubbles: true});
-		event.attribute = attribute;
+            event.attribute = attribute;
 		container.dispatchEvent(event);
-	});
+        });
 
-	ascButton.addEventListener("click", () => {
-		addHiddenClass(ascButton);
-		removeHiddenClass(descButton);
-		container.sort = "desc";
+        ascButton.addEventListener("click", () => {
+            addHiddenClass(ascButton);
+            removeHiddenClass(descButton);
+            container.sort = "desc";
 		const event = new Event("sort", {bubbles: true});
-		event.attribute = attribute;
+            event.attribute = attribute;
 		container.dispatchEvent(event);
-	});
+        });
 	return container;
-}
+    }
 
-function insertTextAtPosition(text, textToAdd, selectionStart, selectionEnd) {
+    function insertTextAtPosition(text, textToAdd, selectionStart, selectionEnd) {
 	return [text.slice(0, selectionStart), textToAdd, text.slice(selectionEnd)].join('');
-}
+    }
 
 function addDropTarget(dataGrid, parent, count) {
-	const dropTarget = addContainer(parent);
-	addClass(dropTarget, "dropTarget");
+        const dropTarget = addContainer(parent);
+        addClass(dropTarget, "dropTarget");
 	dropTarget.addEventListener("dragenter", (event) => {
-		addClass(dropTarget, "dragOver");
+            addClass(dropTarget, "dragOver");
 		event.preventDefault();
-	});
+        });
 
 	dropTarget.addEventListener("dragover", (event) => {
 		event.preventDefault();
-	});
+        });
 
 	dropTarget.addEventListener("dragleave", (event) => {
-		removeClass(dropTarget, "dragOver");
+            removeClass(dropTarget, "dragOver");
 		event.preventDefault();
-	});
+        });
 
 	dropTarget.addEventListener("drop", (event) => {
 		const dropCount = event.dataTransfer.getData("count");
-		event.preventDefault();
-		removeClass(dropTarget, "dragOver");
+            event.preventDefault();
+            removeClass(dropTarget, "dragOver");
 		if (dropCount - count < -1 || dropCount - count > 0) {
 			dataGrid.sortSpec = reorderSorting(dataGrid.sortSpec, dropCount, count);
 			refreshSortingContainer(dataGrid);
 			updateDataGrid(dataGrid);
 		}
-	});
+        });
 
 	return dropTarget;
-}
+    }
 
-function reorderSorting(sortSpec, fromLocation, toLocation) {
-	const itemToMove = sortSpec[fromLocation];
-	sortSpec.splice(fromLocation, 1);
-	sortSpec.splice(toLocation, 0, itemToMove);
+    function reorderSorting(sortSpec, fromLocation, toLocation) {
+        const itemToMove = sortSpec[fromLocation];
+        sortSpec.splice(fromLocation, 1);
+        sortSpec.splice(toLocation, 0, itemToMove);
 	return sortSpec;
-}
+    }
 
-function initModal(modal, topLeft = false) {
-	if (modal.offsetHeight > mxExplorer.maxInitialHeight) {
+    function initModal(modal, topLeft = false) {
+        if (modal.offsetHeight > mxExplorer.maxInitialHeight) {
 		modal.style.height = mxExplorer.maxInitialHeight + "px";
-	}
+        }
 
-	if (modal.offsetWidth > mxExplorer.maxInitialWidth) {
+        if (modal.offsetWidth > mxExplorer.maxInitialWidth) {
 		modal.style.width = mxExplorer.maxInitialWidth + "px";
-	}
+        }
 
-	if (topLeft) {
-		modal.x = 0;
+        if (topLeft) {
+            modal.x = 0;
 		modal.y = 0;
-	} else {
+        } else {
 		modal.x = Math.floor((screen.width - modal.offsetWidth) / 2);
 		modal.y = Math.floor((screen.height - modal.offsetHeight) / 2);
-	}
+        }
 
-	if (modal.contentCell.offsetHeight > mxExplorer.modalContentMaxInitialHeight) {
+        if (modal.contentCell.offsetHeight > mxExplorer.modalContentMaxInitialHeight) {
 		setComponentHeightInPixels(modal.contentCell, mxExplorer.modalContentMaxInitialHeight);
-	}
+        }
 
-	if (modal.contentCell.offsetWidth > mxExplorer.modalContentMaxInitialWidth) {
+        if (modal.contentCell.offsetWidth > mxExplorer.modalContentMaxInitialWidth) {
 		setComponentWidthInPixels(modal.contentCell, mxExplorer.modalContentMaxInitialWidth);
-	}
+        }
 
-	if (modal.dataGridContent != undefined && modal.dataGridContent.offsetWidth > mxExplorer.modalContentMaxInitialWidth) {
+        if (modal.dataGridContent != undefined && modal.dataGridContent.offsetWidth > mxExplorer.modalContentMaxInitialWidth) {
 		setComponentWidthInPixels(modal.dataGridContent, mxExplorer.dataGridContentMaxInitialWidth);
-	}
+        }
 
-	if (modal.dataGridContent != undefined && modal.dataGridContent.offsetHeight > mxExplorer.modalContentMaxInitialHeight) {
+        if (modal.dataGridContent != undefined && modal.dataGridContent.offsetHeight > mxExplorer.modalContentMaxInitialHeight) {
 		setComponentWidthInPixels(modal.dataGridContent, mxExplorer.dataGridContentMaxInitialHeight);
-	}
+        }
 
-	modal.newX = modal.x;
-	modal.newY = modal.y;
-	modal.style.top = modal.y + "px";
+        modal.newX = modal.x;
+        modal.newY = modal.y;
+        modal.style.top = modal.y + "px";
 	modal.style.left = modal.x + "px";
-}
+    }
 
-function addCollapsiblePanel(parent, addHeaderContent, addContent) {
-	const contentTable = addTable(parent);
-	const headerRow = addRow(contentTable, false);
-	headerRow.table = contentTable;
-	const headerCell = addCell(headerRow);
-	headerCell.row = headerRow;
-	addHeaderContent(headerCell);
+    function addCollapsiblePanel(parent, addHeaderContent, addContent) {
+        const contentTable = addTable(parent);
+        const headerRow = addRow(contentTable, false);
+        headerRow.table = contentTable;
+        const headerCell = addCell(headerRow);
+        headerCell.row = headerRow;
+        addHeaderContent(headerCell);
 
 	headerCell.addEventListener("click", (event) => {
-		event.stopPropagation();
-		const target = headerCell;
-		target.open = !target.open;
-		if (target.open) {
-			const contentRow = addRowAfter(target.row);
-			const contentCell = addCell(contentRow);
-			const contentContainer = addContentContainer(contentCell);
-			target.contentRow = contentRow;
+            event.stopPropagation();
+            const target = headerCell;
+            target.open = !target.open;
+            if (target.open) {
+                const contentRow = addRowAfter(target.row);
+                const contentCell = addCell(contentRow);
+                const contentContainer = addContentContainer(contentCell);
+                target.contentRow = contentRow;
 			addContent(contentContainer);
-		} else {
-			if (target.contentRow) {
+            } else {
+                if (target.contentRow) {
 				contentTable.removeChild(target.contentRow);
-			}
-		}
+                }
+            }
 	});
-}
+    }
 
-function matchSearchValue(value, searchValue, entityRow, resultArray) {
-	if (value.toLowerCase().includes(searchValue, 0)) {
-		removeHiddenClass(entityRow);
+    function matchSearchValue(value, searchValue, entityRow, resultArray) {
+        if (value.toLowerCase().includes(searchValue, 0)) {
+            removeHiddenClass(entityRow);
 		resultArray[resultArray.length] = entityRow;
-	} else {
+        } else {
 		addHiddenClass(entityRow);
-	}
-}
+        }
+    }
 
-function searchEntities(searchValue) {
-	const it = mxExplorer.entityRows.keys();
-	let result = it.next();
-	const resultArray = [];
-	while (!result.done) {
-		let value = result.value;
-		let entityRow = mxExplorer.entityRows.get(value);
-		const moduleSeparator = value.indexOf(".");
-		if (moduleSeparator === -1) {
+    function searchEntities(searchValue) {
+        const it = mxExplorer.entityRows.keys();
+        let result = it.next();
+        const resultArray = [];
+        while (!result.done) {
+            let value = result.value;
+            let entityRow = mxExplorer.entityRows.get(value);
+            const moduleSeparator = value.indexOf(".");
+            if (moduleSeparator === -1) {
 			matchSearchValue(value, searchValue, entityRow, resultArray);
-		} else {
+            } else {
 			matchSearchValue(value.substring(moduleSeparator + 1), searchValue, entityRow, resultArray);
-		}
+            }
 		result = it.next();
-	}
+        }
 
-	let entityCounter = 1;
+        let entityCounter = 1;
 	resultArray.forEach((entityRow) => {
 		if (entityCounter %2 === 0) {
 			addClass(entityRow, "evenRow");
-		} else {
+            } else {
 			removeClass(entityRow, "evenRow");
-		}
+            }
 		entityCounter++;
 	});
-}
+    }
 
-function addTextToInputField(inputField, text) {
+    function addTextToInputField(inputField, text) {
 	inputField.value = insertTextAtPosition(inputField.value, text, inputField.selectionStart, inputField.selectionEnd);
-}
+    }
 
-function splitArrayToString(array) {
+    function splitArrayToString(array) {
 	let string = '';
-	let count = 1;
+        let count = 1;
 	array.forEach((item) => {
-		if (count !== 1) {
+            if (count !== 1) {
 			string += ", ";
-		}
-		string += item;
+            }
+            string += item;
 		count++;
 	})
 	return string;
-}
+    }
 
-function addMiniButton(parent, text) {
-	const button = addButton(parent, text);
-	addClass(button, "miniButton");
+    function addMiniButton(parent, text) {
+        const button = addButton(parent, text);
+        addClass(button, "miniButton");
 	return button;
-}
+    }
 
-function exportColumn(xpath, attribute, sort) {
-	mxDataGet(xpath, (entries, countObject) => {
-		let exportString = attribute + "\n";
+    function exportColumn(xpath, attribute, sort) {
+        mxDataGet(xpath, (entries, countObject) => {
+            let exportString = attribute + "\n";
 		entries.forEach((entry) => {
-			const value = entry.get(attribute);
-			if (value) {
+                const value = entry.get(attribute);
+                if (value) {
 				exportString += getValue(entry, attribute) + "\n";
-			}
-		});
-		let textFile = null,
+                }
+            });
+            let textFile = null,
 			makeTextFile = function (text) {
 				let data = new Blob([text], {type: 'text/plain'});
 
 				// If we are replacing a previously generated file we need to
 				// manually revoke the object URL to avoid memory leaks.
-				if (textFile !== null) {
+                    if (textFile !== null) {
 					window.URL.revokeObjectURL(textFile);
-				}
+                    }
 
-				textFile = window.URL.createObjectURL(data);
+                    textFile = window.URL.createObjectURL(data);
 
 				// returns a URL you can use as a href
 				return textFile;
-			};
+                };
 
 		let newWindow = open("about:blank","View", "width=300,height=100");
-		newWindow.focus();
+            newWindow.focus();
 
-		const link = addLink(newWindow.document.body, "View");
+            const link = addLink(newWindow.document.body, "View");
 		link.href = makeTextFile(exportString);
 	}, [attribute], getDefaultMxDataGetErrorHandler(), 0, null, sort);
 }
@@ -1935,207 +1944,214 @@ function getSelectorEntity(reference) {
 
 function isObjectReferenceSet(attribute) {
 	return attribute.type === "ObjectReferenceSet";
-}
+    }
 
-function loadAssociations() {
-	mxExplorer.entityKeys.forEach(entityKey => {
-		const entity = mxExplorer.entities[entityKey];
-		entity.getReferenceAttributes().forEach(reference => {
-			let referenceNotFromSuper = true;
-			entity.getSuperEntities().every(superEntity => {
-				if (mxExplorer.entities[superEntity] && mxExplorer.entities[superEntity].getReferenceAttributes().includes(reference)) {
-					referenceNotFromSuper = false;
-					return false
-				}
-				return true
-			});
-			if (referenceNotFromSuper) {
-				const associatedEntityKey = entity.getSelectorEntity(reference);
-				if (mxExplorer.associations.get(associatedEntityKey)) {
+    function loadAssociations() {
+	mxExplorer.entityKeys.forEach((entityKey) => {
+		const entity = mxExplorer.entities.get(entityKey);
+		getReferenceAttributes(entity).forEach((reference) => {
+                let referenceNotFromSuper = true;
+
+			//Check reference for presence in super class
+			getSuperEntities(entity).every((superEntity) => {
+				if (getReferenceAttributes(mxExplorer.entities.get(superEntity)).includes(reference)) {
+                        referenceNotFromSuper = false;
+					return false;
+                    }
+				return true;
+                });
+
+			//If the reference is present in the super class, do not continue processing
+                if (referenceNotFromSuper) {
+				const associatedEntityKey = getSelectorEntity(reference);
+                    if (mxExplorer.associations.get(associatedEntityKey)) {
 					mxExplorer.associations.get(associatedEntityKey).set(reference, entityKey);
-				} else {
-					const associatedEntityMap = new Map;
+                    } else {
+					const associatedEntityMap = new Map();
 					mxExplorer.associations.set(associatedEntityKey, associatedEntityMap.set(reference, entityKey));
-				}
-				const associatedEntity = mxExplorer.entities[associatedEntityKey];
-				if (associatedEntity) {
-					if (associatedEntity.getSubEntities().length > 0) {
-						associatedEntity.getSubEntities().forEach(subEntityKey => {
-							if (mxExplorer.associations.get(subEntityKey)) {
+                    }
+				const associatedEntity = mxExplorer.entities.get(associatedEntityKey);
+                    if (associatedEntity) {
+					if (getSubEntities(associatedEntity).length > 0) {
+						getSubEntities(associatedEntity).forEach((subEntityKey) => {
+                                if (mxExplorer.associations.get(subEntityKey)) {
 								mxExplorer.associations.get(subEntityKey).set(reference, entityKey);
-							} else {
-								const associatedEntityMap = new Map;
+                                } else {
+								const associatedEntityMap = new Map();
 								mxExplorer.associations.set(subEntityKey, associatedEntityMap.set(reference, entityKey));
-							}
+                                }
 						});
-					}
-				}
-			}
+                        }
+                    }
+                }
 		});
 	});
-}
+    }
 
-function loadNPEntities() {
-	mx.session.getConfig().metadata.every(entity => {
-		if (!entity.persistable) {
-			mxExplorer.npEntityArray.push(entity.objectType)
-		}
-		return true
+    function loadNPEntities() {
+	mxExplorer.entityKeys.forEach((entityKey) => {
+		mx.session.sessionData.metadata.every((entity) => {
+			if (entity.objectType === entityKey && !entity.persistable) {
+				mxExplorer.npEntityArray.push(entityKey);
+				return false;
+            }
+			return true;
+        });
 	});
-	afterLoadNPEntities()
-}
+	afterLoadNPEntities();
+    }
 
-function addTabContainer(parent) {
-	const tabContainer = addContainer(parent);
+    function addTabContainer(parent) {
+        const tabContainer = addContainer(parent);
 	addClass(tabContainer, "tabContainer");
-}
+    }
 
-function addTabToContainer(parent, name) {
-	const button = addButton(parent, name);
-	button.content = addContainer(parent);
+    function addTabToContainer(parent, name) {
+        const button = addButton(parent, name);
+        button.content = addContainer(parent);
 	addClass(button.content, "tabcontent");
-}
+    }
 
-function addResizeContainer(parent, cursorType, setHeight, setWidth, modal, location) {
-	const container = addContainer(parent);
-	container.draggable = true;
-	if (setHeight) {
+    function addResizeContainer(parent, cursorType, setHeight, setWidth, modal, location) {
+        const container = addContainer(parent);
+        container.draggable = true;
+        if (setHeight) {
 		container.style.height = mxExplorer.resizeAreaSize + "px";
-	}
+        }
 
-	if (setWidth) {
+        if (setWidth) {
 		container.style.width = mxExplorer.resizeAreaSize + "px";
-	}
+        }
 
-	container.addEventListener("mouseover", () => {
+        container.addEventListener("mouseover", () => {
 		document.body.style.cursor = cursorType;
-	});
-	container.addEventListener("mouseleave", () => {
-		if (document.body.style.cursor === cursorType) {
+        });
+        container.addEventListener("mouseleave", () => {
+            if (document.body.style.cursor === cursorType) {
 			document.body.style.cursor = "default";
-		}
-	});
+            }
+        });
 	container.addEventListener("dragstart", (event) => {
-		container.dragStartX = event.x;
+            container.dragStartX = event.x;
 		container.dragStartY = event.y;
 	})
 
 	container.addEventListener("dragend", (event) => {
-		const widthDif = event.x - container.dragStartX;
-		const heightDif = event.y - container.dragStartY;
-		let withDifMod = null;
-		let heightDifMod = null;
+            const widthDif = event.x - container.dragStartX;
+            const heightDif = event.y - container.dragStartY;
+            let withDifMod = null;
+            let heightDifMod = null;
 
-		if (location === "r") {
-			withDifMod = widthDif;
+            if (location === "r") {
+                withDifMod = widthDif;
 			setModalNewWidth(modal, modal.offsetWidth + withDifMod);
-		} else if (location === "l") {
-			setNewX(modal, widthDif);
-			withDifMod = widthDif * -1;
+            } else if (location === "l") {
+                setNewX(modal, widthDif);
+                withDifMod = widthDif * -1;
 			setModalNewWidth(modal, modal.offsetWidth + (withDifMod));
-		} else if (location === "t") {
-			setNewY(modal, heightDif);
-			heightDifMod = heightDif * -1;
+            } else if (location === "t") {
+                setNewY(modal, heightDif);
+                heightDifMod = heightDif * -1;
 			setModalNewHeight(modal, modal.offsetHeight + heightDifMod);
-		} else if (location === "b") {
-			heightDifMod = heightDif;
+            } else if (location === "b") {
+                heightDifMod = heightDif;
 			setModalNewHeight(modal, modal.offsetHeight + heightDifMod);
 		} else if(location === "tr") {
-			withDifMod = widthDif;
-			setModalNewWidth(modal, modal.offsetWidth + widthDifMod);
-			setNewY(modal, heightDif);
-			heightDifMod = heightDif * -1;
+                withDifMod = widthDif;
+                setModalNewWidth(modal, modal.offsetWidth + widthDifMod);
+                setNewY(modal, heightDif);
+                heightDifMod = heightDif * -1;
 			setModalNewHeight(modal, modal.offsetHeight + heightDifMod);
 		} else if(location === "br") {
-			withDifMod = widthDif;
-			setModalNewWidth(modal, modal.offsetWidth + widthDifMod);
-			heightDifMod = heightDif;
+                withDifMod = widthDif;
+                setModalNewWidth(modal, modal.offsetWidth + widthDifMod);
+                heightDifMod = heightDif;
 			setModalNewHeight(modal, modal.offsetHeight + heightDifMod);
 		} else if(location === "tl") {
-			withDifMod = widthDif;
-			setNewX(modal, widthDif);
-			withDifMod = widthDif * -1;
+                withDifMod = widthDif;
+                setNewX(modal, widthDif);
+                withDifMod = widthDif * -1;
 			setModalNewWidth(modal, modal.offsetWidth + (widthDifMod));
 			setNewY(modal, heightDif)
-			heightDifMod = heightDif * -1;
+                heightDifMod = heightDif * -1;
 			setModalNewHeight(modal, modal.offsetHeight + heightDifMod);
 		} else if(location === "bl") {
-			setNewX(modal, widthDif);
-			withDifMod = widthDif * -1;
+                setNewX(modal, widthDif);
+                withDifMod = widthDif * -1;
 			setModalNewWidth(modal, modal.offsetWidth + (widthDifMod));
-			heightDifMod = heightDif;
+                heightDifMod = heightDif;
 			setModalNewHeight(modal, modal.offsetHeight + heightDifMod);
-		}
+            }
 
-		if (modal.dataGridContent != undefined) {
-			if (withDifMod != null) {
-				modal.dataGridContent.style.width = modal.dataGridContent.offsetWidth + withDifMod;
+            if (modal.dataGridContent != undefined) {
+                if (withDifMod != null) {
+                    modal.dataGridContent.style.width = modal.dataGridContent.offsetWidth + withDifMod;
 				modal.dataGridContent.dataTable.style.maxWidth = null;
-			}
-			if (heightDifMod != null) {
-				modal.dataGridContent.style.height = modal.dataGridContent.offsetHeight + heightDifMod;
+                }
+                if (heightDifMod != null) {
+                    modal.dataGridContent.style.height = modal.dataGridContent.offsetHeight + heightDifMod;
 				modal.dataGridContent.dataTable.style.maxHeight = null;
-			}
-		}
+                }
+            }
 	})
 	return container;
-}
+    }
 
-function setModalNewWidth(modal, newWidth) {
-	const minWidth = 100;
+    function setModalNewWidth(modal, newWidth) {
+        const minWidth = 100;
 	setComponentWidthInPixels(modal, (newWidth  > minWidth ? newWidth : minWidth));
-	setComponentWidthInPixels(modal.contentCell, calculateModalContentWidth(modal.offsetWidth));
-	if (modal.dataGridContent != undefined) {
+        setComponentWidthInPixels(modal.contentCell, calculateModalContentWidth(modal.offsetWidth));
+        if (modal.dataGridContent != undefined) {
 		setComponentWidthInPixels(modal.dataGridContent, calculateDataGridContentWidth(modal.contentCell.offsetWidth));
-	}
-}
+        }
+    }
 
-function setModalNewHeight(modal, newHeight) {
-	const minHeight = 100;
+    function setModalNewHeight(modal, newHeight) {
+        const minHeight = 100;
 	setComponentHeightInPixels(modal, (newHeight > minHeight ? newHeight : minHeight));
-	setComponentHeightInPixels(modal.contentCell, calculateModalContentHeight(modal.offsetHeight));
-	if (modal.dataGridContent != undefined) {
+        setComponentHeightInPixels(modal.contentCell, calculateModalContentHeight(modal.offsetHeight));
+        if (modal.dataGridContent != undefined) {
 
 		setComponentHeightInPixels(modal.dataGridContent, calculateDataGridContentHeight(modal.contentCell.offsetHeight, modal));
-	}
-}
+        }
+    }
 
-function setNewX(modal, widthDif) {
-	modal.newX = modal.x + widthDif;
-	modal.x = modal.newX;
+    function setNewX(modal, widthDif) {
+        modal.newX = modal.x + widthDif;
+        modal.x = modal.newX;
 	modal.style.left = modal.newX + "px";
-}
+    }
 
-function setNewY(modal, heightDif) {
-	modal.newY = modal.y + heightDif;
-	modal.y = modal.newY;
+    function setNewY(modal, heightDif) {
+        modal.newY = modal.y + heightDif;
+        modal.y = modal.newY;
 	modal.style.top = modal.newY + "px";
-}
+    }
 
-function addResizeCenterSidesStyling(element) {
-	element.style.width = mxExplorer.resizeAreaSize + "px";
+    function addResizeCenterSidesStyling(element) {
+        element.style.width = mxExplorer.resizeAreaSize + "px";
 	setComponentHeightInPixels(element, "calc(100% - " + (2 * mxExplorer.resizeAreaSize));
-	element.style.position = "absolute";
+        element.style.position = "absolute";
 	element.style.top = mxExplorer.resizeAreaSize + "px";
-}
+    }
 
-function setComponentHeightInPixels(component, newHeight) {
+    function setComponentHeightInPixels(component, newHeight) {
 	component.style.height = newHeight + "px";
-}
+    }
 
-function setComponentWidthInPixels(component, newWidth) {
+    function setComponentWidthInPixels(component, newWidth) {
 	component.style.width = newWidth + "px";
-}
+    }
 
-function calculateModalContentWidth(modalWidth) {
+    function calculateModalContentWidth(modalWidth) {
 	return modalWidth - ((2 * mxExplorer.resizeAreaSize) + (2 * mxExplorer.modalBorderWidth));
-}
+    }
 
-function calculateModalContentHeight(modalHeight) {
+    function calculateModalContentHeight(modalHeight) {
 	return modalHeight - (mxExplorer.navPanelHeight + (2 * mxExplorer.resizeAreaSize) + (2 * mxExplorer.modalBorderWidth));
-}
+    }
 
-function calculateDataGridContentWidth(modalContentWidth) {
+    function calculateDataGridContentWidth(modalContentWidth) {
 	return modalContentWidth - (mxExplorer.modalContentPaddingLeft + mxExplorer.modalContentPaddingRight + mxExplorer.modalContentCellPaddingLeft + mxExplorer.modalContentCellPaddingRight);
 }
 
@@ -2287,21 +2303,21 @@ function toggleColumn(dataGrid, attribute, visible) {
 			}
 		});
 	}
-}
+    }
 
-function calculateDataGridContentHeight(modalContentHeight, modal) {
-    let otherContent = 0;
-	if (modal != undefined) {
-		if (modal.topRow != undefined) {
+    function calculateDataGridContentHeight(modalContentHeight, modal) {
+        let otherContent = 0;
+        if (modal != undefined) {
+            if (modal.topRow != undefined) {
 			otherContent += modal.topRow;
-		}
-		if (modal.sortingRow != undefined) {
+            }
+            if (modal.sortingRow != undefined) {
 			otherContent += modal.sortingRow;
-		}
-		if (modal.navigationRow != undefined) {
+            }
+            if (modal.navigationRow != undefined) {
 			otherContent += modal.navigationRow;
-		}
-	}
+            }
+        }
 	return modalContentHeight - (mxExplorer.modalContentPaddingTop + mxExplorer.modalContentPaddingBottom + mxExplorer.modalContentCellPaddingTop + mxExplorer.modalContentCellPaddingBottom + mxExplorer.modalContentCellPaddingLeft + mxExplorer.modalContentCellPaddingRight + otherContent);
-}
+    }
 })();
