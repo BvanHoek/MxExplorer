@@ -1,43 +1,9 @@
-//If you want to use the script from a bookmark in the browser then minify and insert the script in this line (minus the forward slashes) and use that as the bookmark url:
-//javascript: (() => {PASTE THE SCRIPT HERE})();
-//Version: 1.4.0
-
-//Added in 1.2.0
-//Styling updated (thanks to Bianca Beerepoot)
-//It is now possible to export columns in a grid using the » button in the column header (this currently only exports the column the » button is behind)
-//Constants exposed to the client can now be viewed
-//NP entities can now be shown for all versions of Mendix
-//The GUID of an entry is now also shown on the data page
-//You can now use ctrl+enter in the xpath field to initiate search
-//It is now possible to browse from a persistent to a non persistent entity (previously opening an association to a non persistent entity would result in an error
-//Entity search is now only done on the entity name, the module no longer matches
-//Modals are now resizable
-//Attributes are now shown as readonly (red) or read/write (green)
-//Some restyling done on the datagrid search panels (the xpath search field now has a placeholder instead of a seperate label and the buttons make better use of the available space
-//The current page is now shown on the main modal
-//Added a logout link to the main modal
-
-//Fixed in 1.2.0
-//Fixed an issue where not all uneven rows had a grey background
-//Fixed an issue where you couldn't open associations when the association started in the entity entry being viewed
-//The modal for browse cache is now correctly called Browse cache (instead of Browse entities)
-//Associations are now loaded at start so they can always be used by the Browse cache functionality as well (they would otherwise only show the associated entries when the Browse entities modal was opened)
-//Opening an object in the Browse cache will now result in the object modal being shown as the top modal (it would open behind the Browse cache modal)
-//Associations pointing to an entity (many to One on the one side) are now also shown in specializations
-//The drop-down used to select the number of entries shown in a datagrid is now always shown, this solves the issue where the dropdown disappeared for a resultset of, for instance, 15 when the maxresults was switched from 10 to 25 or 50.
-//When opening a specialization entry via the datapage the specialization is now shown instead of only the attributes of the generalization
-//Fixed an issue with the entity search field not using the last input character in the search
-
-//Added in 1.3.0
-//Fixed the not working in React client part
-
-//Updated the way the datagrid data is refreshed, it will now not create an entirely new modal, but only update the actual data.
-//Added column visibility picker to the datagrid: a sticky 👁 button at the far-right end of the header row opens a dropdown showing all columns with checkboxes to show or hide them. The button stays visible even when scrolling horizontally. Visibility state is preserved across page navigation.
-
 javascript: (() => {
 let mxExplorer = {};
 mxExplorer.version = "1.3.1";
 mxExplorer.appTitle = "Mx Explorer v" + mxExplorer.version + ", created by Valcon";
+
+const metadataArray = mx.session.getConfig().metadata;
 mxExplorer.entities = {};
 metadataArray.forEach(entityMeta => {
 	mxExplorer.entities[entityMeta.objectType] = {
