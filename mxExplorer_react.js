@@ -34,6 +34,7 @@
 //Updated the way the datagrid data is refreshed, it will now not create an entirely new modal, but only update the actual data.
 //Added column visibility picker to the datagrid: a sticky 👁 button at the far-right end of the header row opens a dropdown showing all columns with checkboxes to show or hide them. The button stays visible even when scrolling horizontally. Visibility state is preserved across page navigation.
 
+javascript(() => {
 let mxExplorer = {};
 mxExplorer.version = "1.3.1";
 mxExplorer.appTitle = "Mx Explorer v" + mxExplorer.version + ", created by Valcon";
@@ -2324,3 +2325,4 @@ function calculateDataGridContentHeight(modalContentHeight, modal) {
 	}
 	return modalContentHeight - (mxExplorer.modalContentPaddingTop + mxExplorer.modalContentPaddingBottom + mxExplorer.modalContentCellPaddingTop + mxExplorer.modalContentCellPaddingBottom + mxExplorer.modalContentCellPaddingLeft + mxExplorer.modalContentCellPaddingRight + otherContent);
 }
+})();
