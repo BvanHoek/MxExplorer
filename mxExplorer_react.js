@@ -715,10 +715,10 @@ function addSearchLink(parent, entity) {
 	function addValueElement(column, valueParam, attribute, entityObject) {
 		if (entityObject.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
 			addObjectReferenceLink(column, valueParam, attribute, entityObject)
-		} else if (entityObject.getAttributeType(attribute) === "ObjectReferenceSet" && valueParam !== "") {
+		} else if (entityObject.getAttributeType(attribute) === "ObjectReferenceSet" && valueParam && Array.isArray(valueParam)) {
 			valueParam.forEach((entry) => {
-				addObjectReferenceLink(column, entry, attribute, entityObject);
-			})
+			addObjectReferenceLink(column, entry, attribute, entityObject);
+   		})
 		} else {
 			const textNode = addTextNode(column, valueParam);
 			textNode.objectReference = false;
@@ -1158,8 +1158,8 @@ function updateDataGrid(dataGrid) {
 					if (dataGrid.hiddenColumns.has(attribute)) {
 						addHiddenClass(dataCell);
 					}
-
-					const element = addValueElement(dataCell, value, attribute, entry.entityObject);
+					console.log('Calling addValueElement - attribute:', attribute, 'entityObject:', dataGrid.entityObject);
+					const element = addValueElement(dataCell, value, attribute, dataGrid.entityObject);
 					if (element && !element.objectReference) {
 						dataCell.addEventListener("click", () => {
 							addTextToInputField(dataGrid.xpathField, "[" + attribute + "= \'" +  value + "\']");
