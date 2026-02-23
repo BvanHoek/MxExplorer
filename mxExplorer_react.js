@@ -1277,7 +1277,7 @@ function addDataGridContent(dataGrid) {
 
 	dataGrid.headerCellMap = new Map();
 
-	const entityObject = mxExplorer.entities.[dataGrid.entity];
+	const entityObject = mxExplorer.entities[dataGrid.entity];
 	dataGrid.parentAttributes.forEach(attributeObject => {
 		const headerCell = addCell(headerRow);
 		dataGrid.headerCellMap.set(attributeObject, headerCell);
@@ -1484,7 +1484,7 @@ function addDataPage(entry, parentAttributes) {
 	const associationsContentTable = addTable(associationsCell);
 
 	let container;
-	const entityObject = mxExplorer.entities.[entityName];
+	const entityObject = mxExplorer.entities[entityName];
 
 	container = addLabelValue(attributeContentTable, "GUID", entry.getGuid());
 
@@ -1541,7 +1541,7 @@ function addAssociationPanel(association, entity, table, evenRow, modal, entry) 
 				const entityObject = item.object;
 				const entityObjectGuid = entityObject.getGuid();
 				if (entityObject.getEntity() === entity) {
-					if (getValue(entityObject, key, mxExplorer.entities.[entityObject.getEntity()]) === entry.getGuid()) {
+					if (getValue(entityObject, key, mxExplorer.entities[entityObject.getEntity()]) === entry.getGuid()) {
 						hasNpObjects = true;
 						const row = addRow(table);
 						const cell = addCell(row);
