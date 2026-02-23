@@ -32,6 +32,7 @@ document.body.appendChild(shadowHost);
 const shadowRoot = shadowHost.attachShadow({ mode: 'open' });
 mxExplorer.body = shadowRoot;
 mxExplorer.head = shadowRoot; // Reference to shadowRoot so app styling does not effect the tool
+mxExplorer.shadowHost = shadowHost;
 mxExplorer.zIndex = 1000;
 mxExplorer.defaultPageSize = 10;
 mxExplorer.browseEntitiesModel = null;
