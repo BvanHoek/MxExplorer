@@ -1940,11 +1940,11 @@ function isObjectReferenceSet(attribute) {
 		entity.getReferenceAttributes().forEach((reference) => {
                 let referenceNotFromSuper = true;
 
-			//Check reference for presence in super class
-//Check reference for presence in super class
+		//Check reference for presence in super class
+		//Check reference for presence in super class
 		entity.getSuperEntities().every((superEntity) => { // Changed from getSuperEntities(entity)
 			const superEntityObj = mxExplorer.entities[superEntity];
-			if (superEntityObj && getReferenceAttributes(superEntityObj).includes(reference)) { // Added safety check
+			if (superEntityObj && superEntityObj.getReferenceAttributes().includes(reference)) { // Added safety check
 				referenceNotFromSuper = false;
 				return false;
 			}
