@@ -348,14 +348,11 @@ loadNPEntities();
 
 function afterLoadNPEntities() {
 	mxExplorer.modal = addModalClosableDraggable(mxExplorer.body, mxExplorer.appTitle, false, true);
-
-	mxExplorer.modal.closeButton.addEventListener("click", (event) => {
+	// Close handler adjusted so it closes the shadowhost
+	mxExplorer.modal.closeButton.addEventListener("click", event => {
 		event.stopPropagation();
-		mxExplorer.modalArray.forEach((modal) => {
-			mxExplorer.body.removeChild(modal);
-		});
-		mxExplorer.head.removeChild(mxExplorer.shadowHost);
-		mxExplorer = null;
+		document.body.removeChild(mxExplorer.shadowHost);
+		mxExplorer = null
 	});
 
 	mxExplorer.modalContentTable = addTable(mxExplorer.modal.contentCell);
@@ -621,11 +618,12 @@ function getAttributes(entity) {
 
 function addEntityAttributePanel(attributeColumn, entityName, attributes) {
 	const panel = addTableNoMargin(attributeColumn);
-	const entityObject = mxExplorer.entities.get(entityName);
-	attributes.forEach((attribute) => {
+	const entity = mxExplorer.entities[entityName];
+	attributes.forEach(attribute => {
 		let row = addRow(panel, true);
 		let column = addCell(row);
 		let writeAccess = true;
+		// FIX: was mx.session.sessionData.metadata
 		mx.session.getConfig().metadata.every(entityMeta => {
 			if (entityMeta.objectType === entityName) {
 				const attributeObject = entityMeta.attributes[attribute];
@@ -636,7 +634,7 @@ function addEntityAttributePanel(attributeColumn, entityName, attributes) {
 			}
 			return true
 		});
-		const label = addTextNode(column, attribute + " (" + entityObject.getAttributeType(attribute) + ")");
+		const label = addTextNode(column, attribute + " (" + entity.getAttributeType(attribute) + ")");
 		if (writeAccess) {
 			addClass(column, "green");
 		} else {
