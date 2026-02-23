@@ -1921,37 +1921,33 @@ function isObjectReferenceSet(attribute) {
 }
 
 function loadAssociations() {
-	mxExplorer.entityKeys.forEach((entityKey) => {
-		const entity = mxExplorer.entities.get(entityKey);
-		getReferenceAttributes(entity).forEach((reference) => {
+	mxExplorer.entityKeys.forEach(entityKey => {
+		const entity = mxExplorer.entities[entityKey];
+		entity.getReferenceAttributes().forEach(reference => {
 			let referenceNotFromSuper = true;
-
-			//Check reference for presence in super class
-			getSuperEntities(entity).every((superEntity) => {
-				if (getReferenceAttributes(mxExplorer.entities.get(superEntity)).includes(reference)) {
+			entity.getSuperEntities().every(superEntity => {
+				if (mxExplorer.entities[superEntity] && mxExplorer.entities[superEntity].getReferenceAttributes().includes(reference)) {
 					referenceNotFromSuper = false;
-					return false;
+					return false
 				}
-				return true;
+				return true
 			});
-
-			//If the reference is present in the super class, do not continue processing
 			if (referenceNotFromSuper) {
-				const associatedEntityKey = getSelectorEntity(reference);
+				const associatedEntityKey = entity.getSelectorEntity(reference);
 				if (mxExplorer.associations.get(associatedEntityKey)) {
 					mxExplorer.associations.get(associatedEntityKey).set(reference, entityKey);
 				} else {
-					const associatedEntityMap = new Map();
+					const associatedEntityMap = new Map;
 					mxExplorer.associations.set(associatedEntityKey, associatedEntityMap.set(reference, entityKey));
 				}
-				const associatedEntity = mxExplorer.entities.get(associatedEntityKey);
+				const associatedEntity = mxExplorer.entities[associatedEntityKey];
 				if (associatedEntity) {
-					if (getSubEntities(associatedEntity).length > 0) {
-						getSubEntities(associatedEntity).forEach((subEntityKey) => {
+					if (associatedEntity.getSubEntities().length > 0) {
+						associatedEntity.getSubEntities().forEach(subEntityKey => {
 							if (mxExplorer.associations.get(subEntityKey)) {
 								mxExplorer.associations.get(subEntityKey).set(reference, entityKey);
 							} else {
-								const associatedEntityMap = new Map();
+								const associatedEntityMap = new Map;
 								mxExplorer.associations.set(subEntityKey, associatedEntityMap.set(reference, entityKey));
 							}
 						});
