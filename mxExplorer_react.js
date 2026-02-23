@@ -1348,7 +1348,7 @@ function addDataGridNavigation(dataGrid) {
 	dataGrid.nextPageLink = addLink(nextPageColumn, ">");
 	dataGrid.lastPageLink = addLink(lastPageColumn, ">>");
 
-	dataGrid.selectPageSize = addPageSize(dataGrid, dataGrid.topRightContainer, () => {
+	dataGrid.selectPageSize = addPageSize(dataGrid.topRightContainer, () => {
 		dataGrid.pageSize = dataGrid.selectPageSize.value;
 		updateDataGrid(dataGrid);
 	});
