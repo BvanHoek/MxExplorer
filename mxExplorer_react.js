@@ -592,7 +592,7 @@ function addEntity(entityKey, entitiesTable, entityCounter) {
 function addSearchLink(parent, entity) {
 	const searchLink = addLink(parent, "Search");
 	searchLink.entity = entity;
-	searchLink.attributesParam = getAttributes(entity);
+	searchLink.attributesParam = mxExplorer.entities[entity].getAttributes();
 	searchLink.addEventListener("click", searchLinkOnClick);
 }
 
@@ -602,19 +602,20 @@ function entityLinkOnClick() {
 		const entityContentRow = addRowAfter(this.row);
 		const attributeColumn = addCell(entityContentRow);
 		this.entityContentRow = entityContentRow;
-		const attributes = getAttributes(this.entity);
+		const entityObject = mxExplorer.entities[this.entity];
+		const attributes = entityObject.getAttributes();
 		addEntityAttributePanel(attributeColumn, this.entity, attributes);
-		addCell(entityContentRow);
+		addCell(entityContentRow)
 	} else {
 		if (this.entityContentRow) {
-			this.entitiesTable.removeChild(this.entityContentRow);
+			this.entitiesTable.removeChild(this.entityContentRow)
 		}
 	}
 }
 
-function getAttributes(entity) {
-	return Object.entries(mxExplorer.entities.get(entity).attributes).map((attribute) => {return attribute[0]});
-}
+// function getAttributes(entity) {
+// 	return Object.entries(mxExplorer.entities.get(entity).attributes).map((attribute) => {return attribute[0]});
+// }
 
 function addEntityAttributePanel(attributeColumn, entityName, attributes) {
 	const panel = addTableNoMargin(attributeColumn);
@@ -694,17 +695,15 @@ function addValueElement(column, valueParam, attributeName, entityObject) {
 	}
 }
 
-function addObjectReferenceLink(column, valueParam) {
+function addObjectReferenceLink(column, valueParam, attribute, entityObject) {
 	const link = addLink(column, valueParam);
-	link.addEventListener("click", () => {mxDataGetEntry(valueParam,
-		(entry) => {
-			console.log(entry.getEntity());
-			console.dir(getAttributes(entry.getEntity()));
-
-			return addDataPage(entry, getAttributes(entry.getEntity()));
-		}, (error) => {
+	link.addEventListener("click", () => {
+		mxDataGetEntry(valueParam, entry => {
+			return addDataPage(entry, mxExplorer.entities[entry.getEntity()].getAttributes())
+		}, error => {
 			window.alert("Could not execute query, error: " + error.status);
-		})});
+		})
+	});
 	link.objectReference = true;
 	return link;
 }
@@ -1571,11 +1570,9 @@ function addAssociationPanel(association, entity, table, evenRow, modal, entry) 
 				addLabel(cell, "No related np entities found");
 			}
 		} else {
-			addClass(container, "dataGridContainer");
-			console.log("[" + association + "=" + entry.getGuid() + "]");
-			console.dir(entry);
-			addDataGrid(container, getAttributes(entity), "[" + association + "=" + entry.getGuid() + "]", true);
-		}
+                addClass(container, "dataGridContainer");
+                addDataGrid(container, mxExplorer.entities[entity].getAttributes(), entity, mxExplorer.amount, 0, "", [], "[" + association + "=" + entry.getGuid() + "]", true, modal)
+            }
 	});
 	//Dummy cell
 	addCell(collapsibleRow);
@@ -1584,8 +1581,14 @@ function addAssociationPanel(association, entity, table, evenRow, modal, entry) 
 	}
 }
 
-function addPaging(dataGrid) {
-	dataGrid.pagingLabel = addLabel(dataGrid.pagingContainer, emptyPagingText);
+function addPaging(navigationColumn, length, offset, amount) {
+	const maxLength = +offset + +amount;
+	const to = length < maxLength ? length : maxLength;
+	if (length > 0) {
+		addLabel(navigationColumn, offset + 1 + " to " + to + " of " + length)
+	} else {
+		addLabel(navigationColumn, "0 to 0 of 0")
+	}
 }
 
 function updatePaging(dataGrid) {
