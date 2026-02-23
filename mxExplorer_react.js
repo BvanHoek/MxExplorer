@@ -1926,18 +1926,6 @@ function addDropTarget(dataGrid, parent, count) {
 	}, [attribute], getDefaultMxDataGetErrorHandler(), 0, null, sort);
 }
 
-function getReferenceAttributes(entityObject) {
-	return Object.entries(entityObject.attributes).filter((attribute) => {return attribute[1].type === 'ObjectReference'});
-}
-
-function getSubEntities(entityObject) {
-	return entityObject.properties.superclasses;
-}
-
-function getSuperEntities(entityObject) {
-	return entityObject.properties.subclasses;
-}
-
 function getSelectorEntity(reference) {
 	return reference[1].klass;
 }
@@ -1949,17 +1937,19 @@ function isObjectReferenceSet(attribute) {
     function loadAssociations() {
 	mxExplorer.entityKeys.forEach((entityKey) => {
 		const entity = mxExplorer.entities[entityKey];
-		getReferenceAttributes(entity).forEach((reference) => {
+		entity.getReferenceAttributes().forEach((reference) => {
                 let referenceNotFromSuper = true;
 
 			//Check reference for presence in super class
-			getSuperEntities(entity).every((superEntity) => {
-				if (getReferenceAttributes(mxExplorer.entities[superEntity]).includes(reference)) {
-                        referenceNotFromSuper = false;
-					return false;
-                    }
-				return true;
-                });
+//Check reference for presence in super class
+		entity.getSuperEntities().every((superEntity) => { // Changed from getSuperEntities(entity)
+			const superEntityObj = mxExplorer.entities[superEntity];
+			if (superEntityObj && getReferenceAttributes(superEntityObj).includes(reference)) { // Added safety check
+				referenceNotFromSuper = false;
+				return false;
+			}
+			return true;
+		});
 
 			//If the reference is present in the super class, do not continue processing
                 if (referenceNotFromSuper) {
@@ -1972,8 +1962,8 @@ function isObjectReferenceSet(attribute) {
                     }
 				const associatedEntity = mxExplorer.entities[associatedEntityKey];
                     if (associatedEntity) {
-					if (getSubEntities(associatedEntity).length > 0) {
-						getSubEntities(associatedEntity).forEach((subEntityKey) => {
+					if (associatedEntity.getSubEntities().length > 0) {
+    						associatedEntity.getSubEntities().forEach((subEntityKey) => {
                                 if (mxExplorer.associations.get(subEntityKey)) {
 								mxExplorer.associations.get(subEntityKey).set(reference, entityKey);
                                 } else {
