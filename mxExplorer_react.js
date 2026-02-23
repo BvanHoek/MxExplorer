@@ -584,7 +584,8 @@ function addClientCacheEntry(item, table, entityCounter, showEntity = true) {
 	const link = addLink(guidCell, item.guid);
 	link.item = item;
 	link.addEventListener("click", function(event) {
-		addDataPage(this.item.object, this.item.object.getAttributes());
+		const entityDef = mxExplorer.entities[this.item.object.getEntity()];
+		addDataPage(this.item.object, entityDef ? entityDef.getAttributes() : []);
 		event.stopPropagation();
 	})
 	if (showEntity) {
@@ -711,19 +712,23 @@ function addSearchLink(parent, entity) {
         return row;
     }
 
-    function addValueElement(column, valueParam, attribute, entityObject) {
-        if (entityObject.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
-            addObjectReferenceLink(column, valueParam, attribute, entityObject)
-        } else if (entityObject.getAttributeType(attribute) === "ObjectReferenceSet" && valueParam !== "") {
-            valueParam.forEach((entry) => {
-                addObjectReferenceLink(column, entry, attribute, entityObject);
-            })
-        } else {
-            const textNode = addTextNode(column, valueParam);
-            textNode.objectReference = false;
-            return textNode;
-        }
-    }
+	function addValueElement(column, valueParam, attribute, entityObject) {
+		// entityObject here is actually a data entry (MxObject), not entity definition
+		// Get the actual entity definition
+		const entityDef = mxExplorer.entities[entityObject.getEntity()];
+		
+		if (entityDef && entityDef.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
+			addObjectReferenceLink(column, valueParam, attribute, entityObject)
+		} else if (entityDef && entityDef.getAttributeType(attribute) === "ObjectReferenceSet" && valueParam !== "") {
+			valueParam.forEach((entry) => {
+				addObjectReferenceLink(column, entry, attribute, entityObject);
+			})
+		} else {
+			const textNode = addTextNode(column, valueParam);
+			textNode.objectReference = false;
+			return textNode;
+		}
+	}
 
     function addObjectReferenceLink(column, valueParam, attribute, entityObject) {
         const link = addLink(column, valueParam);
@@ -1584,7 +1589,8 @@ function handlePageNavigationClick(dataGrid, newPageOffset) {
 								return true;
                                 });
                                 if (objectStillInCache) {
-                                    addDataPage(entityObject, entityObject.getAttributes());
+									const entityDef = mxExplorer.entities[entityObject.getEntity()];
+									addDataPage(entityObject, entityDef ? entityDef.getAttributes() : []);
 								event.stopPropagation();
 							}	else {
 								window.alert("Item " + entityObjectGuid + " is no longer present in the cache, please refresh");
