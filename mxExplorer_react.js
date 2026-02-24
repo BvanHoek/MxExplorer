@@ -1162,7 +1162,7 @@ function updateDataGrid(dataGrid) {
 					}
 					console.info('Calling addValueElement - attribute:', attribute, 'entityObject:', dataGrid.entityObject);
 
-					const element = addValueElement(dataCell, value, attribute, entry.entityObject);
+					const element = addValueElement(dataCell, value, attribute, dataGrid.entityObject);
 					if (element && !element.objectReference) {
 						dataCell.addEventListener("click", () => {
 							addTextToInputField(dataGrid.xpathField, "[" + attribute + "= \'" +  value + "\']");
@@ -1283,9 +1283,9 @@ function addDataGridHeader(dataGrid) {
 	});
 }
 
-function getAttributeType(entityObject, attribute) {
-	return entityObject.attributes[attribute].type;
-}
+// function getAttributeType(entityObject, attribute) {
+// 	return entityObject.attributes[attribute].type;
+// }
 
 function addDataGridContent(dataGrid) {
 	const dataRow = addRow(dataGrid);
