@@ -713,7 +713,7 @@ function addSearchLink(parent, entity) {
     }
 
 	function addValueElement(column, valueParam, attribute, entityObject) {
-		 mx.logger.info('START addValueElement - attribute: ' + attribute + ', entityObject: ' + (entityObject ? 'defined' : 'undefined'));
+
 		if (entityObject.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
 			console.log('ObjectReferenceSet - valueParam:', valueParam, 'isArray:', Array.isArray(valueParam));
 			addObjectReferenceLink(column, valueParam, attribute, entityObject)
@@ -1160,7 +1160,6 @@ function updateDataGrid(dataGrid) {
 					if (dataGrid.hiddenColumns.has(attribute)) {
 						addHiddenClass(dataCell);
 					}
-					console.info('Calling addValueElement - attribute:', attribute, 'entityObject:', dataGrid.entityObject);
 
 					const element = addValueElement(dataCell, value, attribute, dataGrid.entityObject);
 					if (element && !element.objectReference) {
@@ -1283,9 +1282,6 @@ function addDataGridHeader(dataGrid) {
 	});
 }
 
-// function getAttributeType(entityObject, attribute) {
-// 	return entityObject.attributes[attribute].type;
-// }
 
 function addDataGridContent(dataGrid) {
 	const dataRow = addRow(dataGrid);
