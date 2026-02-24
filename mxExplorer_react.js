@@ -713,6 +713,7 @@ function addSearchLink(parent, entity) {
     }
 
 	function addValueElement(column, valueParam, attribute, entityObject) {
+		 mx.logger.info('START addValueElement - attribute: ' + attribute + ', entityObject: ' + (entityObject ? 'defined' : 'undefined'));
 		if (entityObject.getAttributeType(attribute) === "ObjectReference" && valueParam !== "") {
 			console.log('ObjectReferenceSet - valueParam:', valueParam, 'isArray:', Array.isArray(valueParam));
 			addObjectReferenceLink(column, valueParam, attribute, entityObject)
