@@ -1,6 +1,6 @@
 //If you want to use the script from a bookmark in the browser then minify and insert the script in this line (minus the forward slashes) and use that as the bookmark url:
 //javascript: (() => {PASTE THE SCRIPT HERE})();
-//Version: 1.3.0
+//Version: 1.4.0
 
 //Added in 1.2.0
 //Styling updated (thanks to Bianca Beerepoot)
@@ -17,7 +17,7 @@
 //The current page is now shown on the main modal
 //Added a logout link to the main modal
 
-//Fixed in 1.2.1
+//Fixed in 1.2.0
 //Fixed an issue where not all uneven rows had a grey background
 //Fixed an issue where you couldn't open associations when the association started in the entity entry being viewed
 //The modal for browse cache is now correctly called Browse cache (instead of Browse entities)
@@ -30,13 +30,11 @@
 
 //Added in 1.3.0
 //Fixed the not working in React client part
+
 //Updated the way the datagrid data is refreshed, it will now not create an entirely new modal, but only update the actual data.
 //Added column visibility picker to the datagrid: a sticky 👁 button at the far-right end of the header row opens a dropdown showing all columns with checkboxes to show or hide them. The button stays visible even when scrolling horizontally. Visibility state is preserved across page navigation.
-//The entity list search/filter field now stays visible (sticky) when scrolling through the entity list
-//Fixed an issue where sometimes new modals would open behind the modal they're created from
-//The entire app is now in a shadow dom which should prevent bleeding of the styling of the MxExplorer into the parent page and vice versa
-
-let mxExplorer = {};
+javascript: (() => {
+    let mxExplorer = {};
 mxExplorer.version = "1.3.0";
 mxExplorer.appTitle = "Mx Explorer v" + mxExplorer.version + ", created by Valcon";
 
@@ -2318,3 +2316,4 @@ function calculateDataGridContentHeight(modalContentHeight, modal) {
 	}
 	return modalContentHeight - (mxExplorer.modalContentPaddingTop + mxExplorer.modalContentPaddingBottom + mxExplorer.modalContentCellPaddingTop + mxExplorer.modalContentCellPaddingBottom + mxExplorer.modalContentCellPaddingLeft + mxExplorer.modalContentCellPaddingRight + otherContent);
 }
+})();
